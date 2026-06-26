@@ -1,0 +1,9 @@
+bitbucket:
+  workspace: rdwrcloud
+  project: WB
+  repos:
+    - sample-repo
+sync_interval_minutes: 30
+authors:
+  - alice@example.com
+  - bob@example.com

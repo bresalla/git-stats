@@ -1,0 +1,25 @@
+{{define "nav"}}
+<nav>
+  <a href="/activity">Activity</a> |
+  <a href="/delivery-flow">Delivery Flow</a> |
+  <a href="/churn">Code Churn</a>
+  <form method="POST" action="/sync" style="display:inline">
+    <button type="submit">Sync now</button>
+  </form>
+</nav>
+{{end}}
+
+{{define "filters"}}
+<form method="GET">
+  <label>Repo:
+    <select name="repo">
+      <option value="">All</option>
+      {{range .Repos}}<option value="{{.}}" {{if eq . $.SelectedRepo}}selected{{end}}>{{.}}</option>{{end}}
+    </select>
+  </label>
+  <label>Author: <input type="text" name="author" value="{{.SelectedAuthor}}"></label>
+  <label>From: <input type="date" name="from" value="{{.From}}"></label>
+  <label>To: <input type="date" name="to" value="{{.To}}"></label>
+  <button type="submit">Apply filters</button>
+</form>
+{{end}}

@@ -1,0 +1,11 @@
+{{template "nav" .}}
+<h1>Code Churn</h1>
+{{template "filters" .Filter}}
+<table>
+  <thead><tr><th>File</th><th>Commits</th><th>Lines Changed</th></tr></thead>
+  <tbody>
+    {{range .Rows}}
+    <tr><td>{{.Path}}</td><td>{{.CommitCount}}</td><td>{{.LinesChanged}}</td></tr>
+    {{end}}
+  </tbody>
+</table>

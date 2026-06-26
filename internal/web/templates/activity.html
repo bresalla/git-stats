@@ -1,0 +1,11 @@
+{{template "nav" .}}
+<h1>Activity</h1>
+{{template "filters" .Filter}}
+<table>
+  <thead><tr><th>Author</th><th>Commits</th></tr></thead>
+  <tbody>
+    {{range .Rows}}
+    <tr><td>{{.DisplayName}}</td><td>{{.CommitCount}}</td></tr>
+    {{end}}
+  </tbody>
+</table>

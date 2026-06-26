@@ -1,0 +1,11 @@
+{{template "nav" .}}
+<h1>Delivery Flow</h1>
+{{template "filters" .Filter}}
+<table>
+  <thead><tr><th>Pull Request</th><th>Cycle Time (h)</th><th>Time to First Review (h)</th><th>Time in Review (h)</th></tr></thead>
+  <tbody>
+    {{range .Rows}}
+    <tr><td>{{.Title}}</td><td>{{printf "%.1f" .CycleTimeHours}}</td><td>{{printf "%.1f" .FirstReviewHours}}</td><td>{{printf "%.1f" .InReviewHours}}</td></tr>
+    {{end}}
+  </tbody>
+</table>
