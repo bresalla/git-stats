@@ -9,7 +9,6 @@ import (
 
 type Bitbucket struct {
 	Workspace string   `yaml:"workspace"`
-	Project   string   `yaml:"project"`
 	Repos     []string `yaml:"repos"`
 }
 

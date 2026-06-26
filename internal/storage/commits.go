@@ -71,23 +71,11 @@ func (s *Store) ListCommits(f Filter) ([]domain.Commit, error) {
 }
 
 func (s *Store) ListFileChanges(f Filter) ([]domain.FileChange, error) {
-	var clauses []string
-	var args []any
+	where, args := "", []any(nil)
 	if f.RepoSlug != "" {
-		clauses = append(clauses, "repo_slug = ?")
-		args = append(args, f.RepoSlug)
+		where, args = " WHERE repo_slug = ?", []any{f.RepoSlug}
 	}
-	where := ""
-	if len(clauses) > 0 {
-		where = " WHERE " + strings.Join(clauses, " AND ")
-	}
-
-	query := "SELECT fc.commit_hash, fc.repo_slug, fc.path, fc.lines_added, fc.lines_removed, fc.status FROM file_changes fc"
-	if f.RepoSlug != "" {
-		query += where
-	}
-
-	rows, err := s.db.Query(query, args...)
+	rows, err := s.db.Query("SELECT commit_hash, repo_slug, path, lines_added, lines_removed, status FROM file_changes"+where, args...)
 	if err != nil {
 		return nil, err
 	}
