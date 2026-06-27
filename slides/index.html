@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git Statistics — Engineering Flow Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap">
+<style>
+/* ===========================================
+   CSS CUSTOM PROPERTIES (THEME) — Terminal Green
+   =========================================== */
+:root{
+    --bg: #0d1117;
+    --bg-panel: #161b22;
+    --bg-panel-2: #1c2230;
+    --border: #30363d;
+    --green: #39d353;
+    --green-dim: #196c2e;
+    --green-glow: rgba(57, 211, 83, 0.35);
+    --red: #f85149;
+    --amber: #e3b341;
+    --blue: #58a6ff;
+    --text: #c9d1d9;
+    --text-bright: #f0f3f6;
+    --text-dim: #6e7681;
+
+    --font-mono: 'JetBrains Mono', monospace;
+
+    --title-size: 118px;
+    --h2-size: 72px;
+    --body-size: 28px;
+    --small-size: 20px;
+
+    --slide-padding: 130px;
+
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --duration-normal: 0.6s;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body { font-family: var(--font-mono); }
+
+/* ===========================================
+   FIXED 16:9 STAGE: MANDATORY BASE STYLES
+   =========================================== */
+html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: var(--stage-bg, #000);
+}
+.deck-viewport {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: var(--stage-bg, #000);
+}
+.deck-stage {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    transform-origin: 0 0;
+    background: var(--slide-bg, #fff);
+}
+.slide {
+    position: absolute;
+    inset: 0;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    display: block;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    background: var(--slide-bg, #fff);
+}
+.slide.active,
+.slide.visible {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    z-index: 1;
+}
+img, video, canvas, svg { max-width: 100%; max-height: 100%; }
+.deck-controls {
+    position: fixed;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    z-index: 1000;
+}
+@media print {
+    html, body { width: 1920px; height: auto; overflow: visible; background: #fff; }
+    .deck-viewport { position: static; overflow: visible; background: #fff; }
+    .deck-stage { position: static; width: auto; height: auto; transform: none !important; background: none; }
+    .slide { position: relative; display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; width: 1920px; height: 1080px; break-after: page; page-break-after: always; }
+    .slide:last-child { break-after: auto; page-break-after: auto; }
+    .deck-controls { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.2s !important;
+    }
+}
+
+/* ===========================================
+   SLIDE BACKGROUND TEXTURE — shared by every slide
+   =========================================== */
+.slide { background: var(--bg); color: var(--text); }
+.scanlines {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(0deg, rgba(57,211,83,0.025) 0px, rgba(57,211,83,0.025) 1px, transparent 1px, transparent 3px);
+    pointer-events: none;
+}
+.grid-bg {
+    position: absolute; inset: 0;
+    background-image:
+        linear-gradient(rgba(57,211,83,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(57,211,83,0.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+}
+.terminal-bar {
+    position: absolute; top: 0; left: 0; width: 100%; height: 56px;
+    background: var(--bg-panel); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 28px; gap: 10px;
+    z-index: 2;
+}
+.dot { width: 14px; height: 14px; border-radius: 50%; }
+.d1 { background: #ff5f56; } .d2 { background: #ffbd2e; } .d3 { background: #27c93f; }
+.terminal-path { margin-left: 24px; color: var(--text-dim); font-size: 18px; }
+.page-no {
+    position: absolute; bottom: 36px; right: 56px; font-size: 18px; color: var(--text-dim);
+    letter-spacing: 0.05em; z-index: 2;
+}
+
+/* ===========================================
+   ANIMATIONS — staggered reveal
+   =========================================== */
+.reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity var(--duration-normal) var(--ease-out-expo),
+                transform var(--duration-normal) var(--ease-out-expo);
+}
+.slide.visible .reveal { opacity: 1; transform: translateY(0); }
+.d1delay { transition-delay: 0.10s; }
+.d2delay { transition-delay: 0.22s; }
+.d3delay { transition-delay: 0.34s; }
+.d4delay { transition-delay: 0.46s; }
+.d5delay { transition-delay: 0.58s; }
+.d6delay { transition-delay: 0.70s; }
+.d7delay { transition-delay: 0.82s; }
+
+.cursor-blink {
+    display: inline-block; width: 0.5em; height: 0.9em; background: var(--green);
+    margin-left: 8px; vertical-align: middle; animation: blink 1s steps(1) infinite;
+}
+@keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+
+/* ===========================================
+   TYPOGRAPHY HELPERS
+   =========================================== */
+.kicker {
+    color: var(--green); font-size: 24px; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.prompt::before { content: '$ '; color: var(--green); }
+h1.big { font-size: var(--title-size); font-weight: 800; color: var(--text-bright); line-height: 1.04; }
+h1.big .accent { color: var(--green); }
+h2.slide-title { font-size: var(--h2-size); font-weight: 800; color: var(--text-bright); line-height: 1.05; }
+h2.slide-title .accent { color: var(--green); }
+.lede { font-size: 30px; color: var(--text); line-height: 1.55; }
+.lede .hl { color: var(--green); }
+.tag {
+    border: 1px solid var(--green-dim); color: var(--green); padding: 8px 20px;
+    font-size: 19px; border-radius: 4px; background: rgba(57, 211, 83, 0.06);
+}
+.tag.red { border-color: rgba(248,81,73,0.5); color: var(--red); background: rgba(248,81,73,0.08); }
+.tag.amber { border-color: rgba(227,179,65,0.5); color: var(--amber); background: rgba(227,179,65,0.08); }
+.tag.blue { border-color: rgba(88,166,255,0.5); color: var(--blue); background: rgba(88,166,255,0.08); }
+
+ul.checklist { list-style: none; }
+ul.checklist li {
+    font-size: 26px; color: var(--text); margin-bottom: 18px; padding-left: 44px; position: relative; line-height: 1.4;
+}
+ul.checklist li::before {
+    content: '✓'; position: absolute; left: 0; top: 0; color: var(--green); font-weight: 800; font-size: 26px;
+}
+ul.checklist li.no::before { content: '✕'; color: var(--red); }
+
+.code-panel {
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden; box-shadow: 0 30px 70px rgba(0,0,0,0.5);
+}
+.code-panel .head {
+    height: 48px; display: flex; align-items: center; padding: 0 20px; gap: 8px;
+    border-bottom: 1px solid var(--border); font-size: 16px; color: var(--text-dim);
+}
+.code-panel .head .file { color: var(--text); margin-left: 10px; }
+.code-panel pre {
+    padding: 28px 32px; font-size: 22px; line-height: 1.7; color: var(--text);
+    font-family: var(--font-mono); overflow: hidden;
+}
+.code-panel .k { color: var(--blue); }
+.code-panel .s { color: var(--amber); }
+.code-panel .c { color: var(--text-dim); }
+.code-panel .v { color: var(--green); }
+
+/* ===========================================
+   PROGRESS / NAV CHROME (outside the stage)
+   =========================================== */
+.deck-controls {
+    display: flex; align-items: center; gap: 18px;
+    background: rgba(13,17,23,0.9); border: 1px solid var(--border); border-radius: 30px;
+    padding: 10px 22px; backdrop-filter: blur(8px);
+}
+.deck-controls button {
+    background: none; border: none; color: var(--text); font-family: var(--font-mono);
+    font-size: 16px; cursor: pointer; padding: 6px 10px; border-radius: 16px;
+}
+.deck-controls button:hover { color: var(--green); }
+.deck-controls .count { color: var(--text-dim); font-size: 15px; min-width: 60px; text-align: center; }
+
+/* ===========================================
+   INLINE EDITING
+   =========================================== */
+.edit-hotzone { position: fixed; top: 0; left: 0; width: 80px; height: 80px; z-index: 10000; cursor: pointer; }
+.edit-toggle {
+    position: fixed; top: 16px; left: 16px; z-index: 10001;
+    width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border);
+    background: var(--bg-panel); color: var(--green); font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s ease; cursor: pointer;
+}
+.edit-toggle.show, .edit-toggle.active { opacity: 1; pointer-events: auto; }
+.edit-toggle.active { background: var(--green); color: #0d1117; }
+[contenteditable="true"] { outline: 1px dashed var(--green-dim); border-radius: 4px; }
+[contenteditable="true"]:focus { outline: 1px solid var(--green); }
+
+/* ===========================================
+   SLIDE-SPECIFIC LAYOUT
+   =========================================== */
+.content { position: absolute; left: var(--slide-padding); right: var(--slide-padding); top: 200px; z-index: 2; }
+.content.tall { top: 170px; }
+
+.pipeline { display: flex; align-items: center; gap: 0; margin-top: 60px; }
+.pipe-step {
+    flex: 1; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 30px 24px; text-align: center; min-height: 180px; display: flex; flex-direction: column; justify-content: center; gap: 10px;
+}
+.pipe-step .num { color: var(--green); font-size: 18px; }
+.pipe-step .name { color: var(--text-bright); font-size: 26px; font-weight: 700; }
+.pipe-step .desc { color: var(--text-dim); font-size: 17px; line-height: 1.4; }
+.pipe-arrow { color: var(--green); font-size: 32px; padding: 0 18px; }
+
+.card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; margin-top: 50px; }
+.card {
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 36px 32px; min-height: 460px; display: flex; flex-direction: column;
+}
+.card .icon { font-size: 30px; color: var(--green); margin-bottom: 18px; }
+.card h3 { font-size: 32px; color: var(--text-bright); margin-bottom: 16px; }
+.card ul { list-style: none; flex: 1; }
+.card ul li { font-size: 21px; color: var(--text); margin-bottom: 14px; padding-left: 26px; position: relative; line-height: 1.4; }
+.card ul li::before { content: '›'; position: absolute; left: 0; color: var(--green); font-weight: 800; }
+.card .route { margin-top: auto; font-size: 18px; color: var(--text-dim); border-top: 1px solid var(--border); padding-top: 16px; }
+.card .route .v { color: var(--blue); }
+
+.term-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 36px 56px; margin-top: 56px; }
+.term { border-left: 3px solid var(--green); padding-left: 28px; }
+.term .name { font-size: 28px; color: var(--text-bright); font-weight: 700; margin-bottom: 10px; }
+.term .def { font-size: 21px; color: var(--text); line-height: 1.5; }
+
+.two-col { display: grid; grid-template-columns: 1.1fr 1fr; gap: 60px; margin-top: 50px; align-items: start; }
+
+.metric-list { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 50px; margin-top: 50px; }
+.metric-row { display: flex; align-items: baseline; gap: 16px; font-size: 25px; color: var(--text); padding: 12px 0; border-bottom: 1px solid var(--border); }
+.metric-row .idx { color: var(--green); font-weight: 700; min-width: 36px; }
+
+.bigstat { display: flex; gap: 60px; margin-top: 70px; }
+.stat { flex: 1; }
+.stat .num { font-size: 100px; font-weight: 800; color: var(--green); line-height: 1; }
+.stat .label { font-size: 22px; color: var(--text-dim); margin-top: 14px; }
+
+.closing-tags { display: flex; gap: 16px; margin-top: 50px; flex-wrap: wrap; }
+.footer-line { position: absolute; bottom: 90px; left: var(--slide-padding); font-size: 19px; color: var(--text-dim); z-index: 2; }
+</style>
+</head>
+<body>
+<div class="deck-viewport">
+    <main class="deck-stage" id="deckStage">
+
+        <!-- ============ SLIDE 1: TITLE ============ -->
+        <section class="slide active" data-title="Title">
+            <div class="grid-bg"></div>
+            <div class="scanlines"></div>
+            <div class="terminal-bar">
+                <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+                <div class="terminal-path">~/git-statistics — git-analytics-app</div>
+            </div>
+            <div class="content tall">
+                <div class="prompt reveal d1delay" style="color:var(--green);font-size:26px;letter-spacing:1px;">go run ./cmd/server -config config.yaml</div>
+                <h1 class="big reveal d2delay" style="margin-top:24px;">Git Statistics<span class="cursor-blink"></span></h1>
+                <div class="lede reveal d3delay" style="margin-top:34px;max-width:1180px;">A self-hosted engine that turns raw <span class="hl">commits, pull requests, and reviews</span> into team-level delivery flow metrics — and a read-only MCP server your agents can query directly.</div>
+                <div class="closing-tags reveal d4delay">
+                    <div class="tag">Go</div>
+                    <div class="tag">SQLite</div>
+                    <div class="tag">Bitbucket API</div>
+                    <div class="tag">MCP stdio</div>
+                </div>
+            </div>
+            <div class="page-no">01 / 14</div>
+        </section>
+
+        <!-- ============ SLIDE 2: PURPOSE & GOALS ============ -->
+        <section class="slide" data-title="Purpose">
+            <div class="grid-bg"></div>
+            <div class="scanlines"></div>
+            <div class="terminal-bar"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><div class="terminal-path">spec / README.md</div></div>
+            <div class="content">
+                <div class="kicker reveal d1delay">Why this exists</div>
+                <h2 class="slide-title reveal d2delay" style="margin-top:18px;">Make delivery <span class="accent">flow</span> visible</h2>
+                <div class="two-col">
+                    <ul class="checklist reveal d3delay">
+                        <li>Show how delivery flow changes over time</li>
+                        <li>Spot bottlenecks in review, merge, and release</li>
+                        <li>Reveal unstable modules and high-churn areas</li>
+                        <li>Surface team-level insight — not individual ranking</li>
+                    </ul>
+                    <div class="reveal d4delay">
+                        <div class="kicker" style="color:var(--text-dim);">Target users</div>
+                        <div style="margin-top:18px;display:flex;flex-direction:column;gap:14px;">
+                            <div class="tag blue" style="width:fit-content;">Engineering leads</div>
+                            <div class="tag blue" style="width:fit-content;">Backend developers</div>
+                            <div class="tag blue" style="width:fit-content;">DevOps &amp; platform engineers</div>
+                            <div class="tag blue" style="width:fit-content;">Delivery managers</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="page-no">02 / 14</div>
+        </section>
+
+        <!-- ============ SLIDE 3: NON-GOALS ============ -->
+        <section class="slide" data-title="Non-Goals">
+            <div class="grid-bg"></div>
+            <div class="scanlines"></div>
+            <div class="terminal-bar"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><div class="terminal-path">spec / README.md — non-goals</div></div>
+            <div class="content">
+                <div class="kicker reveal d1delay">Drawn deliberately</div>
+                <h2 class="slide-title reveal d2delay" style="margin-top:18px;">What this is <span class="accent">not</span></h2>
+                <ul class="checklist reveal d3delay" style="margin-top:50px;max-width:1100px;">
+                    <li class="no">Performance ranking of developers</li>
+                    <li class="no">A full project-management replacement</li>
+                    <li class="no">Deep static code analysis</li>
+                    <li class="no">Opinionated process enforcement</li>
+                </ul>
+                <div class="lede reveal d4delay" style="margin-top:50px;max-width:1100px;">Privacy-friendly by default: aggregated, team-level views come first — drill-down to raw commits and PRs is opt-in, not the headline.</div>
+            </div>
+            <div class="page-no">03 / 14</div>
+        </section>
+
+        <!-- ============ SLIDE 4: CORE METRICS ============ -->
+        <section class="slide" data-title="Core Metrics">
+            <div class="grid-bg"></div>
+            <div class="scanlines"></div>
+            <div class="terminal-bar"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><div class="terminal-path">spec / core-metrics.list</div></div>
+            <div class="content">
+                <div class="kicker reveal d1delay">What gets measured</div>
+                <h2 class="slide-title reveal d2delay" style="margin-top:18px;">Core <span class="accent">metrics</span></h2>
+                <div class="metric-list reveal d3delay">
+                    <div class="metric-row"><span class="idx">01</span> Commits per day &amp; week</div>
+                    <div class="metric-row"><span class="idx">02</span> Commits by author</div>
+                    <div class="metric-row"><span class="idx">03</span> Commit size distribution</div>
+                    <div class="metric-row"><span class="idx">04</span> Changed files / modules frequency</div>
+                    <div class="metric-row"><span class="idx">05</span> PR cycle time</div>
+                    <div class="metric-row"><span class="idx">06</span> Time to first review</div>
+                    <div class="metric-row"><span class="idx">07</span> Time in review</div>
+                    <div class="metric-row"><span class="idx">08</span> Merge rate</div>
+                    <div class="metric-row"><span class="idx">09</span> Rework / churn rate</div>
+                    <div class="metric-row"><span class="idx">10</span> Activity heatmap (weekday × hour)</div>
+                </div>
+            </div>
+            <div class="page-no">04 / 14</div>
+        </section>
+
+        <!-- ============ SLIDE 5: SUGGESTED ARCHITECTURE ============ -->
+        <section class="slide" data-title="Architecture">
+            <div class="grid-bg"></div>
+            <div class="scanlines"></div>
+            <div class="terminal-bar"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><div class="terminal-path">spec / suggested-architecture</div></div>
+            <div class="content">
+                <div class="kicker reveal d1delay">From the spec</div>
+                <h2 class="slide-title reveal d2delay" style="margin-top:18px;">Five-stage <span class="accent">pipeline</span></h2>
+                <div class="pipeline reveal d3delay">
+                    <div class="pipe-step"><div class="num">01</div><div class="name">Ingestion</div><div class="desc">Pulls from Git provider APIs</div></div>
+                    <div class="pipe-arrow">→</div>
+                    <div class="pipe-step"><div class="num">02</div><div class="name">Normalize</div><div class="desc">Maps events to a common schema</div></div>
+                    <div class="pipe-arrow">→</div>
+                    <div class="pipe-step"><div class="num">03</div><div class="name">Metrics</div><div class="desc">Computes aggregates &amp; derived stats</div></div>
+                    <div class="pipe-arrow">→</div>
+                    <div class="pipe-step"><div class="num">04</div><div class="name">API</div><div class="desc">Serves dashboards &amp; exports</div></div>
+                    <div class="pipe-arrow">→</div>
+                    <div class="pipe-step"><div class="num">05</div><div class="name">Web UI</div><div class="desc">Charts &amp; tables</div></div>
+                </div>
+                <div class="lede reveal d4delay" style="margin-top:60px;">Implemented today as a single Go binary: <span class="hl">internal/bitbucket → internal/normalize → internal/metrics → internal/web</span>, backed by one SQLite file.</div>
+            </div>
+            <div class="page-no">05 / 14</div>
+        </section>
+
+        <!-- ============ SLIDE 6: DASHBOARDS ============ -->
+        <section class="slide" data-title="Dashboards">
+            <div class="grid-bg"></div>
+            <div class="scanlines"></div>
+            <div class="terminal-bar"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><div class="terminal-path">internal/web — routes</div></div>
+            <div class="content">
+                <div class="kicker reveal d1delay">What's live</div>
+                <h2 class="slide-title reveal d2delay" style="margin-top:18px;">Three <span class="accent">dashboards</span></h2>
+                <div class="card-grid reveal d3delay">
+                    <div class="card">
+                        <div class="icon">▤</div>
+                        <h3>Activity</h3>
+                        <ul>
+                            <li>Commit frequency by day</li>
+                            <li>Author contribution</li>
+                            <li>Time-of-day heatmap</li>
+                        </ul>
+                        <div class="route">GET <span class="v">/activity</span></div>
+                    </div>
+                    <div class="card">
+                        <div class="icon">⇄</div>
+                        <h3>Delivery Flow</h3>
+                        <ul>
+                            <li>Cycle time</li>
+                            <li>Time to first review</li>
+                            <li>Time in review, by percentile</li>
+                        </ul>
+                        <div class="route">GET <span class="v">/delivery-flow</span></div>
+                    </div>
+                    <div class="card">
+                        <div class="icon">∿</div>
+                        <h3>Code Churn</h3>
+                        <ul>
+                            <li>Top changing files &amp; folders</li>
+                            <li>Hottest modules</li>
+                            <li>Repeated edits to recent code</li>
+                        </ul>
+                        <div class="route">GET <span class="v">/churn</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="page-no">06 / 14</div>
+        </section>
+
+        <!-- ============ SLIDE 7: DOMAIN CONCEPTS ============ -->
+        <section class="slide" data-title="Domain Concepts">
+            <div class="grid-bg"></div>
+            <div class="scanlines"></div>
+            <div class="terminal-bar"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><div class="terminal-path">CONCEPTS.md — delivery flow</div></div>
+            <div class="content">
+                <div class="kicker reveal d1delay">Shared vocabulary</div>
+                <h2 class="slide-title reveal d2delay" style="margin-top:18px;">PR lifecycle, <span class="accent">precisely</span></h2>
+                <div class="term-grid reveal d3delay">
+                    <div class="term"><div class="name">Cycle Time</div><div class="def">Creation → merge. Only defined for Merged pull requests.</div></div>
+                    <div class="term"><div class="name">Time to First Review</div><div class="def">Creation → the earliest Review on that PR.</div></div>
+                    <div class="term"><div class="name">Time in Review</div><div class="def">Earliest Review → merge. Distinct from Cycle Time.</div></div>
+                    <div class="term"><div class="name">Allowlisted Author</div><div class="def">Flag controlling who counts toward commit-activity metrics — not applied to PR breakdowns.</div></div>
+                </div>
+            </div>
+            <div class="page-no">07 / 14</div>
+        </section>
+
+        <!-- ============ SLIDE 8: DATA MODEL ============ -->
+        <section class="slide" data-title="Data Model">
+            <div class="grid-bg"></div>
+            <div class="scanlines"></div>
+            <div class="terminal-bar"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><div class="terminal-path">internal/storage/sqlite.go</div></div>
+            <div class="content">
+                <div class="kicker reveal d1delay">One file, six tables</div>
+                <h2 class="slide-title reveal d2delay" style="margin-top:18px;">SQLite <span class="accent">storage</span></h2>
+                <div class="two-col reveal d3delay">
+                    <div class="code-panel">
+                        <div class="head"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><span class="file">storage.Open(path)</span></div>
+                        <pre><span class="c">-- created automatically, idempotent</span>
+<span class="k">CREATE TABLE IF NOT EXISTS</span> repositories
+<span class="k">CREATE TABLE IF NOT EXISTS</span> authors
+<span class="k">CREATE TABLE IF NOT EXISTS</span> commits
+<span class="k">CREATE TABLE IF NOT EXISTS</span> file_changes
+<span class="k">CREATE TABLE IF NOT EXISTS</span> pull_requests
+<span class="k">CREATE TABLE IF NOT EXISTS</span> reviews</pre>
+                    </div>
+                    <div class="lede" style="padding-top:10px;">
+                        Default path <span class="hl">git-statistics.db</span>, override with <span class="hl">-db</span>.<br><br>
+                        No manual setup — opening the DB runs the schema and the app is ready to sync.
+                    </div>
+                </div>
+            </div>
+            <div class="page-no">08 / 14</div>
+        </section>
+
+        <!-- ============ SLIDE 9: CONFIG ============ -->
+        <section class="slide" data-title="Config">
+            <div class="grid-bg"></div>
+            <div class="scanlines"></div>
+            <div class="terminal-bar"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><div class="terminal-path">config.yaml</div></div>
+            <div class="content">
+                <div class="kicker reveal d1delay">Setup, step one</div>
+                <h2 class="slide-title reveal d2delay" style="margin-top:18px;">Config + <span class="accent">secrets</span></h2>
+                <div class="two-col reveal d3delay">
+                    <div class="code-panel">
+                        <div class="head"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><span class="file">config.yaml</span></div>
+                        <pre>bitbucket:
+  workspace: <span class="s">my-workspace</span>
+  repos:
+    - <span class="s">"*"</span>          <span class="c"># or named repos</span>
+sync_interval_minutes: <span class="v">30</span>
+authors:
+  - <span class="s">"*"</span>          <span class="c"># or named authors</span></pre>
+                    </div>
+                    <div>
+                        <div class="lede">Secrets stay out of YAML — set as an env var:</div>
+                        <div class="code-panel" style="margin-top:24px;">
+                            <pre style="padding:20px 24px;font-size:20px;"><span class="k">$ env:</span>BITBUCKET_API_TOKEN = <span class="s">"xxxx"</span></pre>
+                        </div>
+                        <div class="lede" style="margin-top:24px;">Required, or <span class="hl">config.Load</span> errors out. Sent as <span class="hl">Authorization: Bearer &lt;token&gt;</span> on every request.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="page-no">09 / 14</div>
+        </section>
+
+        <!-- ============ SLIDE 10: RUN ============ -->
+        <section class="slide" data-title="Run">
+            <div class="grid-bg"></div>
+            <div class="scanlines"></div>
+            <div class="terminal-bar"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><div class="terminal-path">cmd/server</div></div>
+            <div class="content">
+                <div class="kicker reveal d1delay">Setup, step two</div>
+                <h2 class="slide-title reveal d2delay" style="margin-top:18px;">Build &amp; <span class="accent">run</span></h2>
+                <div class="code-panel reveal d3delay" style="margin-top:50px;max-width:1500px;">
+                    <div class="head"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><span class="file">PowerShell</span></div>
+                    <pre><span class="c"># build</span>
+go build ./...
+
+<span class="c"># run — serves dashboards on :8080</span>
+$env:BITBUCKET_API_TOKEN = <span class="s">"xxxx"</span>
+go run ./cmd/server -config config.yaml -db git-statistics.db</pre>
+                </div>
+                <div class="lede reveal d4delay" style="margin-top:40px;">Health check: <span class="hl">GET /healthz</span>. Sync runs on a schedule and can be triggered manually from any dashboard.</div>
+            </div>
+            <div class="page-no">10 / 14</div>
+        </section>
+
+        <!-- ============ SLIDE 11: STARTUP FLOW ============ -->
+        <section class="slide" data-title="Startup Flow">
+            <div class="grid-bg"></div>
+            <div class="scanlines"></div>
+            <div class="terminal-bar"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><div class="terminal-path">cmd/server/main.go</div></div>
+            <div class="content">
+                <div class="kicker reveal d1delay">What happens on boot</div>
+                <h2 class="slide-title reveal d2delay" style="margin-top:18px;">Startup <span class="accent">sequence</span></h2>
+                <ul class="checklist reveal d3delay" style="margin-top:50px;max-width:1300px;">
+                    <li>Load YAML config + env secrets, validate</li>
+                    <li>Open / create SQLite DB, run schema</li>
+                    <li>Build Bitbucket client (token auth) + syncer</li>
+                    <li>Resolve <span class="hl">repos: ["*"]</span> via the Bitbucket API if used</li>
+                    <li>Start background scheduler (every <span class="hl">sync_interval_minutes</span>)</li>
+                    <li>Serve dashboard routes via <span class="hl">internal/web</span></li>
+                </ul>
+            </div>
+            <div class="page-no">11 / 14</div>
+        </section>
+
+        <!-- ============ SLIDE 12: MCP MODE ============ -->
+        <section class="slide" data-title="MCP Mode">
+            <div class="grid-bg"></div>
+            <div class="scanlines"></div>
+            <div class="terminal-bar"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><div class="terminal-path">cmd/server -mcp</div></div>
+            <div class="content">
+                <div class="kicker reveal d1delay">Same data, agent-shaped</div>
+                <h2 class="slide-title reveal d2delay" style="margin-top:18px;">Run as an <span class="accent">MCP server</span></h2>
+                <div class="two-col reveal d3delay">
+                    <div class="code-panel">
+                        <div class="head"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><span class="file">stdio transport</span></div>
+                        <pre>go run ./cmd/server -mcp \
+  -config config.yaml \
+  -db git-statistics.db
+
+<span class="c"># read-only against existing -db</span>
+<span class="c"># run HTTP mode once first to populate it</span></pre>
+                    </div>
+                    <div>
+                        <div class="lede" style="margin-bottom:18px;"><span class="hl">7 tools</span> mirror the dashboards:</div>
+                        <div style="font-size:19px;color:var(--text-dim);line-height:1.9;">
+                            delivery_flow · summary_stats · distributions · churn_hotspots · commits_per_author · breakdown_by_repository · breakdown_by_author
+                        </div>
+                        <div class="lede" style="margin:22px 0 12px;"><span class="hl">2 tools</span> for PR status:</div>
+                        <div style="font-size:19px;color:var(--text-dim);">pr_status_by_author · pr_status_by_repo</div>
+                        <div class="lede" style="margin:22px 0 12px;"><span class="hl">3 prompts</span> bundle workflows:</div>
+                        <div style="font-size:19px;color:var(--text-dim);">investigate_progress · team_activity_summary · pr_health_check</div>
+                    </div>
+                </div>
+            </div>
+            <div class="page-no">12 / 14</div>
+        </section>
+
+        <!-- ============ SLIDE 13: MVP STATUS ============ -->
+        <section class="slide" data-title="MVP Status">
+            <div class="grid-bg"></div>
+            <div class="scanlines"></div>
+            <div class="terminal-bar"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><div class="terminal-path">progress.md</div></div>
+            <div class="content">
+                <div class="kicker reveal d1delay">Where things stand</div>
+                <h2 class="slide-title reveal d2delay" style="margin-top:18px;">19 / 19 tasks <span class="accent">shipped</span></h2>
+                <div class="bigstat reveal d3delay">
+                    <div class="stat"><div class="num">19/19</div><div class="label">plan tasks implemented</div></div>
+                    <div class="stat"><div class="num">100%</div><div class="label">go test ./... passing</div></div>
+                    <div class="stat"><div class="num">3</div><div class="label">dashboards live</div></div>
+                </div>
+                <div class="lede reveal d4delay" style="margin-top:60px;max-width:1300px;"><span class="hl">go build ./...</span> succeeds, <span class="hl">go vet ./...</span> clean. Integration tests cover the full sync → normalize → metrics → SQLite → dashboard path, including idempotent re-sync.</div>
+            </div>
+            <div class="page-no">13 / 14</div>
+        </section>
+
+        <!-- ============ SLIDE 14: CLOSING ============ -->
+        <section class="slide" data-title="Closing">
+            <div class="grid-bg"></div>
+            <div class="scanlines"></div>
+            <div class="terminal-bar"><div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div><div class="terminal-path">~/git-statistics — future</div></div>
+            <div class="content tall">
+                <div class="kicker reveal d1delay">What's next</div>
+                <h1 class="big reveal d2delay" style="margin-top:18px;font-size:88px;">Built for now,<br><span class="accent">open for later</span></h1>
+                <div class="lede reveal d3delay" style="margin-top:40px;max-width:1200px;">From the spec's future-enhancements list: Slack / email digests, anomaly detection, team benchmarks, deployment-aware lead time, AI-generated summaries.</div>
+                <div class="closing-tags reveal d4delay">
+                    <div class="tag">GitHub &amp; GitLab connectors — planned</div>
+                    <div class="tag amber">CSV export — planned</div>
+                    <div class="tag blue">RBAC — planned</div>
+                </div>
+                <div class="footer-line reveal d5delay" style="position:static;margin-top:80px;">git_statistics · Go · SQLite · MCP stdio</div>
+            </div>
+            <div class="page-no">14 / 14</div>
+        </section>
+
+    </main>
+</div>
+
+<!-- Deck navigation chrome (outside fixed stage) -->
+<div class="deck-controls">
+    <button id="prevBtn" title="Previous (←)">‹ prev</button>
+    <div class="count"><span id="curIdx">1</span> / <span id="totalIdx">14</span></div>
+    <button id="nextBtn" title="Next (→)">next ›</button>
+</div>
+
+<!-- Inline editing affordance -->
+<div class="edit-hotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️</button>
+
+<script>
+/* ===========================================
+   SLIDE PRESENTATION CONTROLLER
+   =========================================== */
+class SlidePresentation {
+    constructor() {
+        this.slides = document.querySelectorAll('.slide');
+        this.currentSlide = 0;
+        this.stage = document.getElementById('deckStage');
+        document.getElementById('totalIdx').textContent = this.slides.length;
+        this.setupStageScale();
+        this.setupKeyboardNav();
+        this.setupTouchNav();
+        this.setupButtons();
+        this.showSlide(0);
+    }
+    setupStageScale() {
+        const scale = () => {
+            const factor = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+            const x = (window.innerWidth - 1920 * factor) / 2;
+            const y = (window.innerHeight - 1080 * factor) / 2;
+            this.stage.style.transform = `translate(${x}px, ${y}px) scale(${factor})`;
+        };
+        scale();
+        window.addEventListener('resize', scale);
+    }
+    setupKeyboardNav() {
+        document.addEventListener('keydown', (e) => {
+            if (e.target.getAttribute('contenteditable') === 'true') return;
+            if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); this.showSlide(this.currentSlide + 1); }
+            if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); this.showSlide(this.currentSlide - 1); }
+        });
+    }
+    setupTouchNav() {
+        let startX = 0;
+        this.stage.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; });
+        this.stage.addEventListener('touchend', (e) => {
+            const dx = e.changedTouches[0].clientX - startX;
+            if (dx > 50) this.showSlide(this.currentSlide - 1);
+            if (dx < -50) this.showSlide(this.currentSlide + 1);
+        });
+        let wheelLock = false;
+        window.addEventListener('wheel', (e) => {
+            if (wheelLock) return;
+            if (Math.abs(e.deltaY) < 30) return;
+            wheelLock = true;
+            if (e.deltaY > 0) this.showSlide(this.currentSlide + 1); else this.showSlide(this.currentSlide - 1);
+            setTimeout(() => wheelLock = false, 500);
+        }, { passive: true });
+    }
+    setupButtons() {
+        document.getElementById('prevBtn').addEventListener('click', () => this.showSlide(this.currentSlide - 1));
+        document.getElementById('nextBtn').addEventListener('click', () => this.showSlide(this.currentSlide + 1));
+    }
+    showSlide(index) {
+        this.currentSlide = Math.max(0, Math.min(index, this.slides.length - 1));
+        this.slides.forEach((slide, i) => {
+            slide.classList.toggle('active', i === this.currentSlide);
+            slide.classList.toggle('visible', i === this.currentSlide);
+        });
+        document.getElementById('curIdx').textContent = this.currentSlide + 1;
+    }
+}
+const presentation = new SlidePresentation();
+
+/* ===========================================
+   INLINE EDITING
+   =========================================== */
+class InlineEditor {
+    constructor() {
+        this.isActive = false;
+        this.storageKey = 'git-statistics-deck-edits';
+        this.editableSelectors = 'h1, h2, h3, p, div.lede, div.def, div.name, div.label, div.desc, span, li';
+        this.loadEdits();
+        this.bindToggle();
+    }
+    bindToggle() {
+        const toggle = document.getElementById('editToggle');
+        const hotzone = document.querySelector('.edit-hotzone');
+        let hideTimeout = null;
+        const reveal = () => { clearTimeout(hideTimeout); toggle.classList.add('show'); };
+        const hide = () => { hideTimeout = setTimeout(() => { if (!this.isActive) toggle.classList.remove('show'); }, 400); };
+        hotzone.addEventListener('mouseenter', reveal);
+        hotzone.addEventListener('mouseleave', hide);
+        toggle.addEventListener('mouseenter', reveal);
+        toggle.addEventListener('mouseleave', hide);
+        toggle.addEventListener('click', () => this.toggleEditMode());
+        hotzone.addEventListener('click', () => this.toggleEditMode());
+        document.addEventListener('keydown', (e) => {
+            if ((e.key === 'e' || e.key === 'E') && !e.target.getAttribute('contenteditable')) this.toggleEditMode();
+            if (e.key === 's' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); this.saveEdits(); this.exportHTML(); }
+        });
+    }
+    toggleEditMode() {
+        this.isActive = !this.isActive;
+        document.getElementById('editToggle').classList.toggle('active', this.isActive);
+        const stage = document.getElementById('deckStage');
+        stage.querySelectorAll(this.editableSelectors).forEach(el => {
+            if (el.closest('.deck-controls, .edit-toggle')) return;
+            el.setAttribute('contenteditable', this.isActive ? 'true' : 'false');
+        });
+        if (!this.isActive) this.saveEdits();
+    }
+    saveEdits() {
+        const data = {};
+        document.querySelectorAll('.slide').forEach((slide, i) => { data[i] = slide.innerHTML; });
+        try { localStorage.setItem(this.storageKey, JSON.stringify(data)); } catch (e) {}
+    }
+    loadEdits() {
+        try {
+            const raw = localStorage.getItem(this.storageKey);
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            document.querySelectorAll('.slide').forEach((slide, i) => { if (data[i]) slide.innerHTML = data[i]; });
+        } catch (e) {}
+    }
+    exportHTML() {
+        const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+        const blob = new Blob([html], { type: 'text/html' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'index.html';
+        a.click();
+    }
+}
+const editor = new InlineEditor();
+</script>
+</body>
+</html>

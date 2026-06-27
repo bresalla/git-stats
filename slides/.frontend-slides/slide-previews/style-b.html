@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Style B Preview</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,72,400;0,72,600;1,72,500&family=Hanken+Grotesk:wght@500;600;700&family=DM+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --paper:#F0EBDE;
+  --paper2:#E6E0CE;
+  --ink:#1F2BE0;
+  --ink-soft:#5560E5;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;}
+.deck-viewport{position:fixed;inset:0;overflow:hidden;background:#000;}
+.deck-stage{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--paper);font-family:'Hanken Grotesk',sans-serif;}
+.slide{position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;}
+.stage::before{}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(31,43,224,0.08) 1px,transparent 1px),linear-gradient(90deg,rgba(31,43,224,0.08) 1px,transparent 1px);background-size:40px 40px;}
+.hairline-top,.hairline-bottom{position:absolute;left:60px;right:60px;height:1.5px;background:var(--ink);}
+.hairline-top{top:56px;} .hairline-bottom{bottom:56px;}
+.chrome-top{position:absolute;top:74px;left:60px;right:60px;display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:18px;color:var(--ink);letter-spacing:0.04em;text-transform:uppercase;}
+.glitch{position:absolute;top:0;right:0;width:120px;height:100%;}
+.glitch div{position:absolute;background:var(--ink);opacity:0.85;}
+.content{position:absolute;top:230px;left:140px;width:1280px;}
+.kicker{font-family:'DM Mono',monospace;font-size:22px;color:var(--ink);letter-spacing:0.12em;text-transform:uppercase;opacity:0;animation:reveal .6s ease forwards;animation-delay:.15s;}
+h1{font-family:'Newsreader',serif;font-weight:600;font-size:148px;color:#1a1a1a;line-height:0.98;margin-top:18px;opacity:0;animation:reveal .7s ease forwards;animation-delay:.4s;}
+h1 em{font-style:italic;color:var(--ink);font-weight:500;}
+.subtitle{font-size:32px;color:#3a3a3a;margin-top:40px;line-height:1.5;max-width:980px;opacity:0;animation:reveal .7s ease forwards;animation-delay:.75s;}
+.qr{position:absolute;width:64px;height:64px;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);}
+.qr div{background:var(--ink);}
+.qr1{bottom:150px;left:140px;}
+.footer-rule{position:absolute;bottom:130px;left:140px;right:140px;height:1px;background:rgba(31,43,224,0.4);}
+.footer-text{position:absolute;bottom:90px;left:140px;font-family:'DM Mono',monospace;font-size:18px;color:var(--ink);letter-spacing:0.06em;}
+@keyframes reveal{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
+</style>
+</head>
+<body>
+<div class="deck-viewport">
+  <main class="deck-stage" id="stage">
+    <section class="slide active">
+      <div class="grid"></div>
+      <div class="hairline-top"></div>
+      <div class="hairline-bottom"></div>
+      <div class="chrome-top"><span>Vol. 01 — Engineering Flow</span><span>Git Statistics</span></div>
+      <div class="content">
+        <div class="kicker">Internal Bulletin · Delivery Flow Series</div>
+        <h1>Git <em>Statistics</em></h1>
+        <div class="subtitle">An ingestion-to-dashboard system for Bitbucket activity: cycle time, review lag, and churn — read by humans on the web, and by agents over MCP.</div>
+      </div>
+      <div class="footer-rule"></div>
+      <div class="footer-text">Go · SQLite · Bitbucket REST · MCP stdio</div>
+    </section>
+  </main>
+</div>
+<script>
+const stage=document.getElementById('stage');
+function scale(){const f=Math.min(window.innerWidth/1920,window.innerHeight/1080);const x=(window.innerWidth-1920*f)/2;const y=(window.innerHeight-1080*f)/2;stage.style.transform=`translate(${x}px,${y}px) scale(${f})`;}
+scale();window.addEventListener('resize',scale);
+</script>
+</body>
+</html>

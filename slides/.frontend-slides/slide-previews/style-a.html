@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Style A Preview</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap">
+<style>
+:root{
+  --bg:#0d1117;
+  --green:#39d353;
+  --green-dim:#196c2e;
+  --text:#c9d1d9;
+  --text-dim:#6e7681;
+  --border:#30363d;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;}
+.deck-viewport{position:fixed;inset:0;overflow:hidden;background:#000;}
+.deck-stage{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--bg);font-family:'JetBrains Mono',monospace;}
+.slide{position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;}
+.scanlines{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(57,211,83,0.03) 0px,rgba(57,211,83,0.03) 1px,transparent 1px,transparent 3px);pointer-events:none;}
+.grid-bg{position:absolute;inset:0;background-image:linear-gradient(rgba(57,211,83,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(57,211,83,0.05) 1px,transparent 1px);background-size:48px 48px;}
+.terminal-bar{position:absolute;top:0;left:0;width:100%;height:56px;background:#161b22;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 28px;gap:10px;}
+.dot{width:14px;height:14px;border-radius:50%;}
+.d1{background:#ff5f56;} .d2{background:#ffbd2e;} .d3{background:#27c93f;}
+.terminal-path{margin-left:24px;color:var(--text-dim);font-size:18px;}
+.content{position:absolute;top:160px;left:140px;right:140px;}
+.prompt-line{color:var(--green);font-size:26px;letter-spacing:1px;opacity:0;animation:reveal 0.6s ease forwards;animation-delay:0.2s;}
+h1{font-size:118px;font-weight:800;color:#fff;line-height:1.05;margin-top:20px;opacity:0;animation:reveal 0.7s ease forwards;animation-delay:0.5s;}
+h1 .accent{color:var(--green);}
+.cursor{display:inline-block;width:60px;height:90px;background:var(--green);margin-left:8px;animation:blink 1s steps(1) infinite;vertical-align:middle;}
+.subtitle{font-size:32px;color:var(--text);margin-top:36px;max-width:1100px;line-height:1.5;opacity:0;animation:reveal 0.7s ease forwards;animation-delay:0.9s;}
+.subtitle .hl{color:var(--green);}
+.tagrow{position:absolute;bottom:90px;left:140px;display:flex;gap:18px;opacity:0;animation:reveal 0.7s ease forwards;animation-delay:1.2s;}
+.tag{border:1px solid var(--green-dim);color:var(--green);padding:10px 22px;font-size:20px;border-radius:4px;background:rgba(57,211,83,0.06);}
+@keyframes reveal{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
+@keyframes blink{0%,50%{opacity:1;}51%,100%{opacity:0;}}
+</style>
+</head>
+<body>
+<div class="deck-viewport">
+  <main class="deck-stage" id="stage">
+    <section class="slide active">
+      <div class="grid-bg"></div>
+      <div class="scanlines"></div>
+      <div class="terminal-bar">
+        <div class="dot d1"></div><div class="dot d2"></div><div class="dot d3"></div>
+        <div class="terminal-path">~/git-statistics — git-analytics-app</div>
+      </div>
+      <div class="content">
+        <div class="prompt-line">$ go run ./cmd/server -config config.yaml</div>
+        <h1>Git Statistics<span class="cursor"></span></h1>
+        <div class="subtitle">A self-hosted engine that turns raw <span class="hl">commits, PRs, and reviews</span> into delivery flow metrics — and a read-only MCP server your agents can query.</div>
+      </div>
+      <div class="tagrow">
+        <div class="tag">Go</div>
+        <div class="tag">SQLite</div>
+        <div class="tag">Bitbucket API</div>
+        <div class="tag">MCP stdio</div>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+const stage=document.getElementById('stage');
+function scale(){const f=Math.min(window.innerWidth/1920,window.innerHeight/1080);const x=(window.innerWidth-1920*f)/2;const y=(window.innerHeight-1080*f)/2;stage.style.transform=`translate(${x}px,${y}px) scale(${f})`;}
+scale();window.addEventListener('resize',scale);
+</script>
+</body>
+</html>
