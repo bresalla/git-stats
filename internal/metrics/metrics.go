@@ -335,6 +335,86 @@ func maxDuration(durations []time.Duration) time.Duration {
 	return m
 }
 
+// PRStatusCountRow represents PR state counts for a single breakdown dimension (author or repo).
+type PRStatusCountRow struct {
+	Key     string
+	Open    int
+	Merged  int
+	Declined int
+	Superseded int
+}
+
+// PRStatusByAuthor returns PR state counts grouped by author display name.
+func PRStatusByAuthor(store *storage.Store, f storage.Filter) ([]PRStatusCountRow, error) {
+	prs, err := store.ListPullRequests(f)
+	if err != nil {
+		return nil, err
+	}
+
+	authors, err := store.ListAuthors()
+	if err != nil {
+		return nil, err
+	}
+	displayNames := make(map[string]string, len(authors))
+	for _, a := range authors {
+		displayNames[a.ID] = a.DisplayName
+	}
+
+	// Group PRs by author display name
+	groups := map[string][]domain.PullRequest{}
+	for _, pr := range prs {
+		key := pr.AuthorID
+		if name, ok := displayNames[pr.AuthorID]; ok && name != "" {
+			key = name
+		}
+		groups[key] = append(groups[key], pr)
+	}
+
+	rows := prStatusFromGroups(groups)
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Key < rows[j].Key })
+	return rows, nil
+}
+
+// PRStatusByRepository returns PR state counts grouped by repository slug.
+func PRStatusByRepository(store *storage.Store, f storage.Filter) ([]PRStatusCountRow, error) {
+	prs, err := store.ListPullRequests(f)
+	if err != nil {
+		return nil, err
+	}
+
+	// Group PRs by repo slug
+	groups := map[string][]domain.PullRequest{}
+	for _, pr := range prs {
+		groups[pr.RepoSlug] = append(groups[pr.RepoSlug], pr)
+	}
+
+	rows := prStatusFromGroups(groups)
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Key < rows[j].Key })
+	return rows, nil
+}
+
+// prStatusFromGroups counts PRs by state for each group, ensuring all states are reported.
+func prStatusFromGroups(groups map[string][]domain.PullRequest) []PRStatusCountRow {
+	rows := make([]PRStatusCountRow, 0, len(groups))
+	for key, groupPRs := range groups {
+		row := PRStatusCountRow{Key: key, Open: 0, Merged: 0, Declined: 0, Superseded: 0}
+		for _, pr := range groupPRs {
+			switch pr.State {
+			case "OPEN":
+				row.Open++
+			case "MERGED":
+				row.Merged++
+			case "DECLINED":
+				row.Declined++
+			case "SUPERSEDED":
+				row.Superseded++
+			}
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
 func CommitsPerAuthor(store *storage.Store, f storage.Filter) ([]AuthorActivity, error) {
 	commits, err := store.ListCommits(f)
 	if err != nil {

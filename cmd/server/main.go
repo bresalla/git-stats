@@ -18,6 +18,7 @@ import (
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to YAML config file")
 	dbPath := flag.String("db", "git-statistics.db", "path to SQLite database file")
+	mcpMode := flag.Bool("mcp", false, "run in MCP server mode over stdio")
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)
@@ -31,7 +32,14 @@ func main() {
 	}
 	defer store.Close()
 
-	client := bitbucket.NewClient(cfg.BitbucketUsername, cfg.BitbucketAppPassword)
+	if *mcpMode {
+		if err := runMCPServer(store); err != nil {
+			log.Fatalf("running MCP server: %v", err)
+		}
+		return
+	}
+
+	client := bitbucket.NewClient(cfg.BitbucketEmail, cfg.BitbucketAPIToken)
 	syncer := &ingest.Syncer{
 		Client:    client,
 		Store:     store,
@@ -39,9 +47,18 @@ func main() {
 		Authors:   cfg.Authors,
 	}
 
+	repoSlugs := cfg.Bitbucket.Repos
+	if isWildcard(repoSlugs) {
+		resolved, err := client.ListRepositories(context.Background(), cfg.Bitbucket.Workspace)
+		if err != nil {
+			log.Fatalf("listing repositories: %v", err)
+		}
+		repoSlugs = resolved
+	}
+
 	interval := time.Duration(cfg.SyncIntervalMinutes) * time.Minute
 	sched := scheduler.New(interval, func(ctx context.Context) {
-		for _, err := range syncer.SyncAll(ctx, cfg.Bitbucket.Repos) {
+		for _, err := range syncer.SyncAll(ctx, repoSlugs) {
 			log.Printf("sync error: %v", err)
 		}
 	})
@@ -50,7 +67,7 @@ func main() {
 	defer cancel()
 	go sched.Start(ctx)
 
-	handler := web.NewHandler(store, sched, cfg.Bitbucket.Repos)
+	handler := web.NewHandler(store, sched, repoSlugs)
 
 	mux := newMux()
 	mux.Handle("/", handler.Routes())
@@ -59,6 +76,15 @@ func main() {
 	if err := http.ListenAndServe(":8080", mux); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func isWildcard(slugs []string) bool {
+	for _, slug := range slugs {
+		if slug == "*" {
+			return true
+		}
+	}
+	return false
 }
 
 func newMux() *http.ServeMux {

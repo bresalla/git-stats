@@ -1,1 +1,7 @@
 .serena/
+bin/
+*.exe
+*.db
+*.db-shm
+*.db-wal
+test-output.txt
