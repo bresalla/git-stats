@@ -11,9 +11,8 @@ import (
 func TestListCommits_PaginatesAndParses(t *testing.T) {
 	var pageTwoURL string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, pass, ok := r.BasicAuth()
-		if !ok || user != "svc" || pass != "secret" {
-			t.Errorf("expected basic auth svc/secret, got %s/%s (ok=%v)", user, pass, ok)
+		if user, pass, ok := r.BasicAuth(); !ok || user != "test@example.com" || pass != "test-token" {
+			t.Errorf("expected basic auth test@example.com:test-token, got %q:%q (ok=%v)", user, pass, ok)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Path == "/repositories/rdwrcloud/repo-one/commits" {
@@ -31,7 +30,7 @@ func TestListCommits_PaginatesAndParses(t *testing.T) {
 	defer server.Close()
 	pageTwoURL = server.URL + "/page2"
 
-	client := NewClient("svc", "secret")
+	client := NewClient("test@example.com", "test-token")
 	client.BaseURL = server.URL
 
 	commits, err := client.ListCommits(context.Background(), "rdwrcloud", "repo-one", time.Time{})
@@ -56,7 +55,7 @@ func TestGetDiffstat_ParsesEntries(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("svc", "secret")
+	client := NewClient("test@example.com", "test-token")
 	client.BaseURL = server.URL
 
 	entries, err := client.GetDiffstat(context.Background(), "rdwrcloud", "repo-one", "abc")
@@ -72,13 +71,13 @@ func TestListPullRequests_ParsesAllStates(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{
-			"values": [{"id":1,"title":"Add feature","state":"MERGED","created_on":"2026-01-01T09:00:00Z","updated_on":"2026-01-03T09:00:00Z","author":{"raw":"Alice <alice@example.com>","user":{"account_id":"acct-1","display_name":"Alice"}}}],
+			"values": [{"id":1,"title":"Add feature","state":"MERGED","created_on":"2026-01-01T09:00:00Z","updated_on":"2026-01-03T09:00:00Z","author":{"account_id":"acct-1","display_name":"Alice"}}],
 			"next": ""
 		}`))
 	}))
 	defer server.Close()
 
-	client := NewClient("svc", "secret")
+	client := NewClient("test@example.com", "test-token")
 	client.BaseURL = server.URL
 
 	prs, err := client.ListPullRequests(context.Background(), "rdwrcloud", "repo-one")
@@ -87,6 +86,9 @@ func TestListPullRequests_ParsesAllStates(t *testing.T) {
 	}
 	if len(prs) != 1 || prs[0].ID != 1 {
 		t.Fatalf("unexpected pull requests: %+v", prs)
+	}
+	if prs[0].Author.AccountID != "acct-1" {
+		t.Errorf("expected author account_id acct-1, got %+v", prs[0].Author)
 	}
 }
 
@@ -103,7 +105,7 @@ func TestListActivity_ParsesApprovalsAndComments(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("svc", "secret")
+	client := NewClient("test@example.com", "test-token")
 	client.BaseURL = server.URL
 
 	activity, err := client.ListActivity(context.Background(), "rdwrcloud", "repo-one", 1)

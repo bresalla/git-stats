@@ -79,6 +79,10 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("opening sqlite db: %w", err)
 	}
+	if _, err := db.Exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("configuring sqlite pragmas: %w", err)
+	}
 	if _, err := db.Exec(schema); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("running schema migration: %w", err)

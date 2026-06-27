@@ -8,6 +8,24 @@ type RawAuthor struct {
 	} `json:"user"`
 }
 
+// RawUser represents a Bitbucket user/account object as returned directly
+// (not wrapped in a "user" sub-object) by endpoints such as pull requests,
+// where the actor is always an authenticated Bitbucket account rather than
+// an arbitrary git commit author string.
+type RawUser struct {
+	AccountID   string `json:"account_id"`
+	DisplayName string `json:"display_name"`
+}
+
+type RawRepository struct {
+	Slug string `json:"slug"`
+}
+
+type repositoriesPage struct {
+	Values []RawRepository `json:"values"`
+	Next   string          `json:"next"`
+}
+
 type RawCommit struct {
 	Hash    string    `json:"hash"`
 	Message string    `json:"message"`
@@ -38,12 +56,12 @@ type diffstatPage struct {
 }
 
 type RawPullRequest struct {
-	ID        int       `json:"id"`
-	Title     string    `json:"title"`
-	State     string    `json:"state"`
-	CreatedOn string    `json:"created_on"`
-	UpdatedOn string    `json:"updated_on"`
-	Author    RawAuthor `json:"author"`
+	ID        int     `json:"id"`
+	Title     string  `json:"title"`
+	State     string  `json:"state"`
+	CreatedOn string  `json:"created_on"`
+	UpdatedOn string  `json:"updated_on"`
+	Author    RawUser `json:"author"`
 }
 
 type pullRequestsPage struct {

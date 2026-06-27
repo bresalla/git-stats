@@ -65,7 +65,7 @@ func FileChanges(repoSlug, commitHash string, raw []bitbucket.RawDiffstatEntry) 
 
 func IsAllowlisted(author domain.Author, allowlist []string) bool {
 	for _, email := range allowlist {
-		if strings.EqualFold(email, author.Email) {
+		if email == "*" || strings.EqualFold(email, author.Email) {
 			return true
 		}
 	}
@@ -83,9 +83,8 @@ func PullRequest(repoSlug string, raw bitbucket.RawPullRequest) (domain.PullRequ
 	}
 
 	author := domain.Author{
-		ID:          raw.Author.User.AccountID,
-		DisplayName: raw.Author.User.DisplayName,
-		Email:       extractEmail(raw.Author.Raw),
+		ID:          raw.Author.AccountID,
+		DisplayName: raw.Author.DisplayName,
 	}
 
 	pr := domain.PullRequest{

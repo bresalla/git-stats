@@ -1417,3 +1417,4 @@ git commit -m "test: add comprehensive tests for PR statistics dashboard"
 5. ✓ Existing filters apply to all sections
 6. ✓ Individual PR table remains functional
 7. ✓ All calculations server-side; page loads efficiently
+8. some PRs exist in the database for testing; dashboard reflects real data

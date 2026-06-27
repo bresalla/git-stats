@@ -30,8 +30,8 @@ authors:
 `
 
 func TestLoad_Valid(t *testing.T) {
-	t.Setenv("BITBUCKET_USERNAME", "svc-account")
-	t.Setenv("BITBUCKET_APP_PASSWORD", "secret")
+	t.Setenv("BITBUCKET_EMAIL", "svc@example.com")
+	t.Setenv("BITBUCKET_API_TOKEN", "secret-token")
 	path := writeTempConfig(t, validYAML)
 
 	cfg, err := Load(path)
@@ -50,14 +50,13 @@ func TestLoad_Valid(t *testing.T) {
 	if len(cfg.Authors) != 2 {
 		t.Errorf("expected 2 authors, got %d", len(cfg.Authors))
 	}
-	if cfg.BitbucketUsername != "svc-account" || cfg.BitbucketAppPassword != "secret" {
-		t.Errorf("expected credentials from env, got %q/%q", cfg.BitbucketUsername, cfg.BitbucketAppPassword)
+	if cfg.BitbucketAPIToken != "secret-token" {
+		t.Errorf("expected API token from env, got %q", cfg.BitbucketAPIToken)
 	}
 }
 
 func TestLoad_MissingCredentials(t *testing.T) {
-	t.Setenv("BITBUCKET_USERNAME", "")
-	t.Setenv("BITBUCKET_APP_PASSWORD", "")
+	t.Setenv("BITBUCKET_API_TOKEN", "")
 	path := writeTempConfig(t, validYAML)
 
 	if _, err := Load(path); err == nil {
@@ -66,8 +65,8 @@ func TestLoad_MissingCredentials(t *testing.T) {
 }
 
 func TestLoad_NoRepos(t *testing.T) {
-	t.Setenv("BITBUCKET_USERNAME", "svc-account")
-	t.Setenv("BITBUCKET_APP_PASSWORD", "secret")
+	t.Setenv("BITBUCKET_EMAIL", "svc@example.com")
+	t.Setenv("BITBUCKET_API_TOKEN", "secret-token")
 	path := writeTempConfig(t, `
 bitbucket:
   workspace: rdwrcloud
@@ -84,8 +83,8 @@ authors:
 }
 
 func TestLoad_NoAuthors(t *testing.T) {
-	t.Setenv("BITBUCKET_USERNAME", "svc-account")
-	t.Setenv("BITBUCKET_APP_PASSWORD", "secret")
+	t.Setenv("BITBUCKET_EMAIL", "svc@example.com")
+	t.Setenv("BITBUCKET_API_TOKEN", "secret-token")
 	path := writeTempConfig(t, `
 bitbucket:
   workspace: rdwrcloud
@@ -98,5 +97,30 @@ authors: []
 
 	if _, err := Load(path); err == nil {
 		t.Fatal("expected error for empty author list, got nil")
+	}
+}
+
+func TestLoad_WildcardReposAndAuthors(t *testing.T) {
+	t.Setenv("BITBUCKET_EMAIL", "svc@example.com")
+	t.Setenv("BITBUCKET_API_TOKEN", "secret-token")
+	path := writeTempConfig(t, `
+bitbucket:
+  workspace: rdwrcloud
+  repos:
+    - "*"
+sync_interval_minutes: 30
+authors:
+  - "*"
+`)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.Bitbucket.Repos) != 1 || cfg.Bitbucket.Repos[0] != "*" {
+		t.Errorf("expected wildcard repo, got %v", cfg.Bitbucket.Repos)
+	}
+	if len(cfg.Authors) != 1 || cfg.Authors[0] != "*" {
+		t.Errorf("expected wildcard author, got %v", cfg.Authors)
 	}
 }

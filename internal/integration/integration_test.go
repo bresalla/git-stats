@@ -28,7 +28,7 @@ func TestFullPath_SyncThenDashboardsReflectData(t *testing.T) {
 	})
 	bbMux.HandleFunc("/repositories/rdwrcloud/sample-repo/pullrequests", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"values":[{"id":1,"title":"Add login","state":"MERGED","created_on":"2026-01-01T09:00:00Z","updated_on":"2026-01-02T09:00:00Z","author":{"raw":"Alice <alice@example.com>","user":{"account_id":"acct-1","display_name":"Alice"}}}],"next":""}`))
+		_, _ = w.Write([]byte(`{"values":[{"id":1,"title":"Add login","state":"MERGED","created_on":"2026-01-01T09:00:00Z","updated_on":"2026-01-02T09:00:00Z","author":{"account_id":"acct-1","display_name":"Alice"}}],"next":""}`))
 	})
 	bbMux.HandleFunc("/repositories/rdwrcloud/sample-repo/pullrequests/1/activity", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -43,7 +43,7 @@ func TestFullPath_SyncThenDashboardsReflectData(t *testing.T) {
 	}
 	defer store.Close()
 
-	client := bitbucket.NewClient("svc", "secret")
+	client := bitbucket.NewClient("test@example.com", "test-token")
 	client.BaseURL = bitbucketServer.URL
 
 	syncer := &ingest.Syncer{

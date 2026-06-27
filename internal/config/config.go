@@ -13,11 +13,11 @@ type Bitbucket struct {
 }
 
 type Config struct {
-	Bitbucket            Bitbucket `yaml:"bitbucket"`
-	SyncIntervalMinutes  int       `yaml:"sync_interval_minutes"`
-	Authors              []string  `yaml:"authors"`
-	BitbucketUsername    string    `yaml:"-"`
-	BitbucketAppPassword string    `yaml:"-"`
+	Bitbucket           Bitbucket `yaml:"bitbucket"`
+	SyncIntervalMinutes int       `yaml:"sync_interval_minutes"`
+	Authors             []string  `yaml:"authors"`
+	BitbucketEmail      string    `yaml:"-"`
+	BitbucketAPIToken   string    `yaml:"-"`
 }
 
 func Load(path string) (Config, error) {
@@ -31,8 +31,8 @@ func Load(path string) (Config, error) {
 		return Config{}, fmt.Errorf("parsing config file: %w", err)
 	}
 
-	cfg.BitbucketUsername = os.Getenv("BITBUCKET_USERNAME")
-	cfg.BitbucketAppPassword = os.Getenv("BITBUCKET_APP_PASSWORD")
+	cfg.BitbucketEmail = os.Getenv("BITBUCKET_EMAIL")
+	cfg.BitbucketAPIToken = os.Getenv("BITBUCKET_API_TOKEN")
 
 	if err := cfg.validate(); err != nil {
 		return Config{}, err
@@ -41,8 +41,11 @@ func Load(path string) (Config, error) {
 }
 
 func (c Config) validate() error {
-	if c.BitbucketUsername == "" || c.BitbucketAppPassword == "" {
-		return fmt.Errorf("BITBUCKET_USERNAME and BITBUCKET_APP_PASSWORD env vars must be set")
+	if c.BitbucketEmail == "" {
+		return fmt.Errorf("BITBUCKET_EMAIL env var must be set")
+	}
+	if c.BitbucketAPIToken == "" {
+		return fmt.Errorf("BITBUCKET_API_TOKEN env var must be set")
 	}
 	if c.Bitbucket.Workspace == "" {
 		return fmt.Errorf("bitbucket.workspace must be set")

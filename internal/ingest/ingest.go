@@ -28,6 +28,12 @@ func (s *Syncer) SyncRepo(ctx context.Context, repoSlug string) error {
 		return fmt.Errorf("syncing %s: %w", repoSlug, err)
 	}
 
+	// Bitbucket only includes an email-bearing "raw" committer string on commits;
+	// PR and review actors are reported as bare accounts with no email. Remember
+	// emails seen on commits so those later authors can still be allowlist-matched
+	// by ID instead of always failing the email check.
+	authorEmails := map[string]string{}
+
 	latest := since
 	for _, raw := range rawCommits {
 		commit, author, err := normalize.Commit(repoSlug, raw)
@@ -38,6 +44,7 @@ func (s *Syncer) SyncRepo(ctx context.Context, repoSlug string) error {
 			continue
 		}
 
+		authorEmails[author.ID] = author.Email
 		author.Allowlisted = normalize.IsAllowlisted(author, s.Authors)
 		if err := s.Store.UpsertAuthor(author); err != nil {
 			return fmt.Errorf("syncing %s: storing author: %w", repoSlug, err)
@@ -70,6 +77,9 @@ func (s *Syncer) SyncRepo(ctx context.Context, repoSlug string) error {
 		if err != nil {
 			return fmt.Errorf("syncing %s: %w", repoSlug, err)
 		}
+		if email, ok := authorEmails[author.ID]; ok {
+			author.Email = email
+		}
 		author.Allowlisted = normalize.IsAllowlisted(author, s.Authors)
 		if err := s.Store.UpsertAuthor(author); err != nil {
 			return fmt.Errorf("syncing %s: storing author: %w", repoSlug, err)
@@ -86,6 +96,9 @@ func (s *Syncer) SyncRepo(ctx context.Context, repoSlug string) error {
 			review, reviewer, ok := normalize.Review(repoSlug, pr.ID, ra)
 			if !ok {
 				continue
+			}
+			if email, ok := authorEmails[reviewer.ID]; ok {
+				reviewer.Email = email
 			}
 			reviewer.Allowlisted = normalize.IsAllowlisted(reviewer, s.Authors)
 			if err := s.Store.UpsertAuthor(reviewer); err != nil {

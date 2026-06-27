@@ -22,6 +22,13 @@ When implementing this:
 
 MCP (Model Context Protocol) servers are configured in `.claude/mcp.json` to enable:
 - **docs**: Query Go standard library and third-party package documentation
+- **serena**: Symbol-aware project navigation and editing (find/rename symbols, references, structured edits) — prefer it over ad-hoc grep/sed for non-trivial refactors
 - Shell commands (go, git, npm, make, sqlite3) are pre-approved for faster workflows
 
 See `.claude/settings.json` for project-specific settings and permissions.
+
+## Documented Solutions
+
+`docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
+
+`CONCEPTS.md` — shared domain vocabulary (entities, named processes, status concepts) such as Cycle Time, Delivery Flow, and Allowlisted Author. Relevant when orienting to the codebase or discussing domain concepts.

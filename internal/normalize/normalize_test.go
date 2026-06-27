@@ -74,13 +74,22 @@ func TestIsAllowlisted_CaseInsensitiveEmailMatch(t *testing.T) {
 	}
 }
 
+func TestIsAllowlisted_WildcardMatchesAnyone(t *testing.T) {
+	author := domain.Author{ID: "acct-z", Email: "anyone@example.com"}
+	allowlist := []string{"*"}
+
+	if !IsAllowlisted(author, allowlist) {
+		t.Error("expected wildcard allowlist to match any author")
+	}
+}
+
 func TestPullRequest_MergedSetsMergedAt(t *testing.T) {
 	raw := bitbucket.RawPullRequest{
 		ID: 1, Title: "Add feature", State: "MERGED",
 		CreatedOn: "2026-01-01T09:00:00Z", UpdatedOn: "2026-01-03T09:00:00Z",
 	}
-	raw.Author.Raw = "Alice <alice@example.com>"
-	raw.Author.User.AccountID = "acct-1"
+	raw.Author.AccountID = "acct-1"
+	raw.Author.DisplayName = "Alice"
 
 	pr, author, err := PullRequest("repo-one", raw)
 	if err != nil {
@@ -92,7 +101,30 @@ func TestPullRequest_MergedSetsMergedAt(t *testing.T) {
 	if !pr.MergedAt.Equal(pr.UpdatedAt) {
 		t.Errorf("expected MergedAt to equal UpdatedAt, got %v vs %v", pr.MergedAt, pr.UpdatedAt)
 	}
-	if author.ID != "acct-1" {
+	if author.ID != "acct-1" || author.DisplayName != "Alice" {
+		t.Errorf("unexpected author: %+v", author)
+	}
+	if pr.AuthorID != "acct-1" {
+		t.Errorf("expected pr.AuthorID to be acct-1, got %q", pr.AuthorID)
+	}
+}
+
+func TestPullRequest_AuthorAccountIDMapsFromFlatUserObject(t *testing.T) {
+	raw := bitbucket.RawPullRequest{
+		ID: 3, Title: "Flat author shape", State: "OPEN",
+		CreatedOn: "2026-01-01T09:00:00Z", UpdatedOn: "2026-01-01T09:00:00Z",
+	}
+	raw.Author.AccountID = "5c63b6d37c82182d462d1f6b"
+	raw.Author.DisplayName = "Anatoly Breslavsky"
+
+	pr, author, err := PullRequest("repo-one", raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pr.AuthorID != "5c63b6d37c82182d462d1f6b" {
+		t.Errorf("expected pr.AuthorID to be set from raw.Author.AccountID, got %q", pr.AuthorID)
+	}
+	if author.ID != "5c63b6d37c82182d462d1f6b" || author.DisplayName != "Anatoly Breslavsky" {
 		t.Errorf("unexpected author: %+v", author)
 	}
 }

@@ -34,7 +34,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 	})
 	mux.HandleFunc("/repositories/rdwrcloud/repo-one/pullrequests", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"values":[{"id":1,"title":"Add feature","state":"MERGED","created_on":"2026-01-01T09:00:00Z","updated_on":"2026-01-03T09:00:00Z","author":{"raw":"Alice <alice@example.com>","user":{"account_id":"acct-1","display_name":"Alice"}}}],"next":""}`))
+		_, _ = w.Write([]byte(`{"values":[{"id":1,"title":"Add feature","state":"MERGED","created_on":"2026-01-01T09:00:00Z","updated_on":"2026-01-03T09:00:00Z","author":{"account_id":"acct-1","display_name":"Alice"}}],"next":""}`))
 	})
 	mux.HandleFunc("/repositories/rdwrcloud/repo-one/pullrequests/1/activity", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -47,7 +47,7 @@ func TestSyncRepo_PopulatesStoreAndAdvancesWatermark(t *testing.T) {
 	server := newTestServer(t)
 	defer server.Close()
 
-	client := bitbucket.NewClient("svc", "secret")
+	client := bitbucket.NewClient("test@example.com", "test-token")
 	client.BaseURL = server.URL
 	store := openTestStore(t)
 
@@ -70,6 +70,9 @@ func TestSyncRepo_PopulatesStoreAndAdvancesWatermark(t *testing.T) {
 	prs, err := store.ListPullRequests(storage.Filter{RepoSlug: "repo-one"})
 	if err != nil || len(prs) != 1 {
 		t.Fatalf("expected 1 pull request, got %d (err=%v)", len(prs), err)
+	}
+	if prs[0].AuthorID != "acct-1" {
+		t.Errorf("expected pull request AuthorID to be acct-1, got %q", prs[0].AuthorID)
 	}
 
 	reviews, err := store.ListReviews("repo-one", 1)
@@ -104,7 +107,7 @@ func TestSyncRepo_FailureLeavesWatermarkUnchanged(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client := bitbucket.NewClient("svc", "secret")
+	client := bitbucket.NewClient("test@example.com", "test-token")
 	client.BaseURL = server.URL
 	store := openTestStore(t)
 
@@ -127,7 +130,7 @@ func TestSyncAll_OneRepoFailureDoesNotBlockOthers(t *testing.T) {
 	server := newTestServer(t)
 	defer server.Close()
 
-	client := bitbucket.NewClient("svc", "secret")
+	client := bitbucket.NewClient("test@example.com", "test-token")
 	client.BaseURL = server.URL
 	store := openTestStore(t)
 

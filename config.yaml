@@ -1,0 +1,12 @@
+bitbucket:
+  workspace: rdwrcloud
+  repos:
+    - access-log-reporter
+    - access-log-warehouse
+sync_interval_minutes: 30
+authors:
+  - anatolyb@radware.com
+  - leonidpi@radware.com
+  - AssafM@radware.com
+  - ItzikP@radware.com
+  - Ilyaaf@radware.com
