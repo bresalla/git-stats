@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "docs": {
+      "command": "npx",
+      "args": ["@anthropic-ai/mcp-docs", "--docs-dir", "docs"],
+      "description": "MCP for querying library documentation (Go stdlib, popular packages, APIs)"
+    }
+  }
+}

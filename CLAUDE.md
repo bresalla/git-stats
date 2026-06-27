@@ -17,3 +17,11 @@ The spec's suggested architecture is: an ingestion service (pulls from Git provi
 When implementing this:
 - **Backend services** (ingestion, normalization, metrics engine, API layer): prefer **Go**.
 - **Agent/automation pieces** (e.g. sync orchestration, anomaly detection, AI-generated summaries): prefer **MCP-based tools** or the **Astra framework** over building bespoke integrations from scratch.
+
+## MCP Configuration
+
+MCP (Model Context Protocol) servers are configured in `.claude/mcp.json` to enable:
+- **docs**: Query Go standard library and third-party package documentation
+- Shell commands (go, git, npm, make, sqlite3) are pre-approved for faster workflows
+
+See `.claude/settings.json` for project-specific settings and permissions.

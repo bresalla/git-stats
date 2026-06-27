@@ -1,0 +1,16 @@
+{
+  "projectName": "git-statistics",
+  "permissions": {
+    "allowlist": [
+      "bash:go",
+      "bash:git",
+      "bash:npm",
+      "bash:make",
+      "bash:sqlite3"
+    ]
+  },
+  "environmentVariables": {
+    "GOFLAGS": "-mod=vendor",
+    "CGO_ENABLED": "1"
+  }
+}
