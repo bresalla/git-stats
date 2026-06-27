@@ -81,14 +81,42 @@ type deliveryFlowRow struct {
 }
 
 type deliveryFlowPageData struct {
-	Filter filterFormData
-	Rows   []deliveryFlowRow
+	Filter             filterFormData
+	Summary            *metrics.PRSummaryStats
+	Distributions      *metrics.DistributionMetrics
+	BreakdownsByRepo   []metrics.BreakdownRow
+	BreakdownsByAuthor []metrics.BreakdownRow
+	Rows               []deliveryFlowRow
 }
 
 func (h *Handler) handleDeliveryFlow(w http.ResponseWriter, r *http.Request) {
 	filter, err := parseFilter(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	summary, err := metrics.SummaryStats(h.Store, filter)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	distributions, err := metrics.Distributions(h.Store, filter)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	repoBreakdown, err := metrics.BreakdownByRepository(h.Store, filter)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	authorBreakdown, err := metrics.BreakdownByAuthor(h.Store, filter)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -108,7 +136,14 @@ func (h *Handler) handleDeliveryFlow(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	data := deliveryFlowPageData{Filter: h.filterForm(r), Rows: rows}
+	data := deliveryFlowPageData{
+		Filter:             h.filterForm(r),
+		Summary:            summary,
+		Distributions:      distributions,
+		BreakdownsByRepo:   repoBreakdown,
+		BreakdownsByAuthor: authorBreakdown,
+		Rows:               rows,
+	}
 	if err := h.templates.ExecuteTemplate(w, "delivery_flow.html", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

@@ -1,11 +1,132 @@
+{{template "head" .}}
 {{template "nav" .}}
 <h1>Delivery Flow</h1>
 {{template "filters" .Filter}}
-<table>
-  <thead><tr><th>Pull Request</th><th>Cycle Time (h)</th><th>Time to First Review (h)</th><th>Time in Review (h)</th></tr></thead>
-  <tbody>
-    {{range .Rows}}
-    <tr><td>{{.Title}}</td><td>{{printf "%.1f" .CycleTimeHours}}</td><td>{{printf "%.1f" .FirstReviewHours}}</td><td>{{printf "%.1f" .InReviewHours}}</td></tr>
-    {{end}}
-  </tbody>
-</table>
+
+<div class="summary-cards">
+  <div class="card">
+    <div class="card-label">Avg Cycle Time</div>
+    <div class="card-value">{{printf "%.1f" .Summary.AvgCycleTime.Hours}}h</div>
+    <div class="card-stats">
+      Median: {{printf "%.1f" .Summary.MedianCycleTime.Hours}}h |
+      Min: {{printf "%.1f" .Summary.MinCycleTime.Hours}}h |
+      Max: {{printf "%.1f" .Summary.MaxCycleTime.Hours}}h
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Avg Time to First Review</div>
+    <div class="card-value">{{printf "%.1f" .Summary.AvgFirstReview.Hours}}h</div>
+    <div class="card-stats">
+      Median: {{printf "%.1f" .Summary.MedianFirstReview.Hours}}h |
+      Min: {{printf "%.1f" .Summary.MinFirstReview.Hours}}h |
+      Max: {{printf "%.1f" .Summary.MaxFirstReview.Hours}}h
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Avg Time in Review</div>
+    <div class="card-value">{{printf "%.1f" .Summary.AvgInReview.Hours}}h</div>
+    <div class="card-stats">
+      Median: {{printf "%.1f" .Summary.MedianInReview.Hours}}h |
+      Min: {{printf "%.1f" .Summary.MinInReview.Hours}}h |
+      Max: {{printf "%.1f" .Summary.MaxInReview.Hours}}h
+    </div>
+  </div>
+</div>
+
+<div class="distributions-section">
+  <h2>Distribution (Percentiles)</h2>
+  <div class="distribution-tables">
+    <div class="dist-table">
+      <h3>Cycle Time</h3>
+      <table>
+        <tr><th>Percentile</th><th>Hours</th></tr>
+        <tr><td>P50</td><td>{{printf "%.1f" (index .Distributions.CycleTime "p50").Hours}}</td></tr>
+        <tr><td>P75</td><td>{{printf "%.1f" (index .Distributions.CycleTime "p75").Hours}}</td></tr>
+        <tr><td>P90</td><td>{{printf "%.1f" (index .Distributions.CycleTime "p90").Hours}}</td></tr>
+        <tr><td>P95</td><td>{{printf "%.1f" (index .Distributions.CycleTime "p95").Hours}}</td></tr>
+        <tr><td>P99</td><td>{{printf "%.1f" (index .Distributions.CycleTime "p99").Hours}}</td></tr>
+      </table>
+    </div>
+
+    <div class="dist-table">
+      <h3>Time to First Review</h3>
+      <table>
+        <tr><th>Percentile</th><th>Hours</th></tr>
+        <tr><td>P50</td><td>{{printf "%.1f" (index .Distributions.FirstReview "p50").Hours}}</td></tr>
+        <tr><td>P75</td><td>{{printf "%.1f" (index .Distributions.FirstReview "p75").Hours}}</td></tr>
+        <tr><td>P90</td><td>{{printf "%.1f" (index .Distributions.FirstReview "p90").Hours}}</td></tr>
+        <tr><td>P95</td><td>{{printf "%.1f" (index .Distributions.FirstReview "p95").Hours}}</td></tr>
+        <tr><td>P99</td><td>{{printf "%.1f" (index .Distributions.FirstReview "p99").Hours}}</td></tr>
+      </table>
+    </div>
+
+    <div class="dist-table">
+      <h3>Time in Review</h3>
+      <table>
+        <tr><th>Percentile</th><th>Hours</th></tr>
+        <tr><td>P50</td><td>{{printf "%.1f" (index .Distributions.InReview "p50").Hours}}</td></tr>
+        <tr><td>P75</td><td>{{printf "%.1f" (index .Distributions.InReview "p75").Hours}}</td></tr>
+        <tr><td>P90</td><td>{{printf "%.1f" (index .Distributions.InReview "p90").Hours}}</td></tr>
+        <tr><td>P95</td><td>{{printf "%.1f" (index .Distributions.InReview "p95").Hours}}</td></tr>
+        <tr><td>P99</td><td>{{printf "%.1f" (index .Distributions.InReview "p99").Hours}}</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="breakdowns-section">
+  <details class="breakdown-group" open>
+    <summary class="breakdown-header">By Repository</summary>
+    <div class="breakdown-content">
+      <table>
+        <thead><tr><th>Repository</th><th>Avg Cycle Time</th><th>Avg 1st Review</th><th>Avg in Review</th><th>PRs</th></tr></thead>
+        <tbody>
+          {{range .BreakdownsByRepo}}
+          <tr>
+            <td>{{.Key}}</td>
+            <td>{{printf "%.1f" .AvgCycleTime.Hours}}h</td>
+            <td>{{printf "%.1f" .AvgFirstReview.Hours}}h</td>
+            <td>{{printf "%.1f" .AvgInReview.Hours}}h</td>
+            <td>{{.Count}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <details class="breakdown-group" open>
+    <summary class="breakdown-header">By Author</summary>
+    <div class="breakdown-content">
+      <table>
+        <thead><tr><th>Author</th><th>Avg Cycle Time</th><th>Avg 1st Review</th><th>Avg in Review</th><th>PRs</th></tr></thead>
+        <tbody>
+          {{range .BreakdownsByAuthor}}
+          <tr>
+            <td>{{.Key}}</td>
+            <td>{{printf "%.1f" .AvgCycleTime.Hours}}h</td>
+            <td>{{printf "%.1f" .AvgFirstReview.Hours}}h</td>
+            <td>{{printf "%.1f" .AvgInReview.Hours}}h</td>
+            <td>{{.Count}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </details>
+</div>
+
+<div class="pr-table-section">
+  <h2>Pull Requests</h2>
+  <table>
+    <thead><tr><th>Pull Request</th><th>Cycle Time (h)</th><th>Time to First Review (h)</th><th>Time in Review (h)</th></tr></thead>
+    <tbody>
+      {{range .Rows}}
+      <tr><td>{{.Title}}</td><td>{{printf "%.1f" .CycleTimeHours}}</td><td>{{printf "%.1f" .FirstReviewHours}}</td><td>{{printf "%.1f" .InReviewHours}}</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "foot" .}}

@@ -109,6 +109,44 @@ func TestDeliveryFlowDashboard_ShowsMergedPRsOnly(t *testing.T) {
 	}
 }
 
+func TestDeliveryFlowDashboard_ShowsSummaryStatsDistributionsAndBreakdowns(t *testing.T) {
+	store := openTestStore(t)
+	must(t, store.UpsertAuthor(domain.Author{ID: "acct-1", DisplayName: "Alice"}))
+	created := time.Now().Add(-72 * time.Hour)
+	firstReview := created.Add(6 * time.Hour)
+	merged := created.Add(24 * time.Hour)
+	must(t, store.UpsertPullRequest(domain.PullRequest{
+		ID: 1, RepoSlug: "repo-one", Title: "Add feature", AuthorID: "acct-1",
+		State: "MERGED", CreatedAt: created, UpdatedAt: merged, MergedAt: &merged,
+	}))
+	must(t, store.UpsertReview(domain.Review{
+		ID: "r1", PullRequestID: 1, RepoSlug: "repo-one", ReviewerID: "acct-2",
+		Action: "approved", CreatedAt: firstReview,
+	}))
+
+	handler := newTestHandler(t, store)
+	req := httptest.NewRequest(http.MethodGet, "/delivery-flow", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Avg Cycle Time") {
+		t.Errorf("expected summary cards in response, got: %s", body)
+	}
+	if !strings.Contains(body, "Distribution (Percentiles)") {
+		t.Errorf("expected distribution tables in response, got: %s", body)
+	}
+	if !strings.Contains(body, "By Repository") || !strings.Contains(body, "repo-one") {
+		t.Errorf("expected repository breakdown in response, got: %s", body)
+	}
+	if !strings.Contains(body, "By Author") || !strings.Contains(body, "Alice") {
+		t.Errorf("expected author breakdown keyed by display name in response, got: %s", body)
+	}
+}
+
 func TestChurnDashboard_ShowsTopFiles(t *testing.T) {
 	store := openTestStore(t)
 	must(t, store.UpsertCommit(domain.Commit{Hash: "c1", RepoSlug: "repo-one", AuthoredAt: time.Now()}))
