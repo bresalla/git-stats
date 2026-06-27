@@ -4,6 +4,7 @@ import (
 	"sort"
 	"time"
 
+	"git-statistics/internal/domain"
 	"git-statistics/internal/storage"
 )
 
@@ -85,6 +86,253 @@ func ChurnHotspots(store *storage.Store, f storage.Filter) ([]FileChurn, error) 
 	}
 	sort.Slice(churn, func(i, j int) bool { return churn[i].LinesChanged > churn[j].LinesChanged })
 	return churn, nil
+}
+
+// PRSummaryStats holds aggregate statistics for PR timings across merged pull requests.
+type PRSummaryStats struct {
+	AvgCycleTime      time.Duration
+	AvgFirstReview    time.Duration
+	AvgInReview       time.Duration
+	MedianCycleTime   time.Duration
+	MedianFirstReview time.Duration
+	MedianInReview    time.Duration
+	MinCycleTime      time.Duration
+	MinFirstReview    time.Duration
+	MinInReview       time.Duration
+	MaxCycleTime      time.Duration
+	MaxFirstReview    time.Duration
+	MaxInReview       time.Duration
+}
+
+// mergedPRDurations collects per-PR cycle time, time-to-first-review, and time-in-review
+// for all merged pull requests matching the filter. Review-derived durations are only
+// included for PRs that actually have a review.
+func mergedPRDurations(store *storage.Store, f storage.Filter) (cycleTimes, firstReviewTimes, inReviewTimes []time.Duration, err error) {
+	prs, err := store.ListPullRequests(f)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	for _, pr := range prs {
+		if pr.MergedAt == nil {
+			continue
+		}
+		cycleTimes = append(cycleTimes, pr.MergedAt.Sub(pr.CreatedAt))
+
+		reviews, err := store.ListReviews(pr.RepoSlug, pr.ID)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		if len(reviews) > 0 {
+			firstReview := reviews[0].CreatedAt
+			firstReviewTimes = append(firstReviewTimes, firstReview.Sub(pr.CreatedAt))
+			inReviewTimes = append(inReviewTimes, pr.MergedAt.Sub(firstReview))
+		}
+	}
+	return cycleTimes, firstReviewTimes, inReviewTimes, nil
+}
+
+// SummaryStats computes aggregate PR timing statistics (avg/median/min/max) for merged
+// pull requests matching the filter.
+func SummaryStats(store *storage.Store, f storage.Filter) (*PRSummaryStats, error) {
+	cycleTimes, firstReviewTimes, inReviewTimes, err := mergedPRDurations(store, f)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PRSummaryStats{
+		AvgCycleTime:      avgDuration(cycleTimes),
+		AvgFirstReview:    avgDuration(firstReviewTimes),
+		AvgInReview:       avgDuration(inReviewTimes),
+		MedianCycleTime:   PercentileDurations(cycleTimes, 50),
+		MedianFirstReview: PercentileDurations(firstReviewTimes, 50),
+		MedianInReview:    PercentileDurations(inReviewTimes, 50),
+		MinCycleTime:      minDuration(cycleTimes),
+		MinFirstReview:    minDuration(firstReviewTimes),
+		MinInReview:       minDuration(inReviewTimes),
+		MaxCycleTime:      maxDuration(cycleTimes),
+		MaxFirstReview:    maxDuration(firstReviewTimes),
+		MaxInReview:       maxDuration(inReviewTimes),
+	}, nil
+}
+
+// DistributionMetrics holds percentile distributions for the three PR timing metrics.
+type DistributionMetrics struct {
+	CycleTime   map[string]time.Duration
+	FirstReview map[string]time.Duration
+	InReview    map[string]time.Duration
+}
+
+// Distributions computes percentile distributions (P50/P75/P90/P95/P99) for merged PR timings.
+func Distributions(store *storage.Store, f storage.Filter) (*DistributionMetrics, error) {
+	cycleTimes, firstReviewTimes, inReviewTimes, err := mergedPRDurations(store, f)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DistributionMetrics{
+		CycleTime:   DistributionStats(cycleTimes),
+		FirstReview: DistributionStats(firstReviewTimes),
+		InReview:    DistributionStats(inReviewTimes),
+	}, nil
+}
+
+// BreakdownRow represents aggregated PR metrics for a single breakdown dimension (e.g. one repo or author).
+type BreakdownRow struct {
+	Key            string
+	AvgCycleTime   time.Duration
+	AvgFirstReview time.Duration
+	AvgInReview    time.Duration
+	Count          int
+}
+
+// BreakdownByRepository returns PR metrics grouped by repository, limited to the top 10
+// repositories by PR count and sorted by AvgCycleTime descending.
+func BreakdownByRepository(store *storage.Store, f storage.Filter) ([]BreakdownRow, error) {
+	prs, err := store.ListPullRequests(f)
+	if err != nil {
+		return nil, err
+	}
+
+	groups := map[string][]domain.PullRequest{}
+	for _, pr := range prs {
+		if pr.MergedAt == nil {
+			continue
+		}
+		groups[pr.RepoSlug] = append(groups[pr.RepoSlug], pr)
+	}
+
+	rows, err := breakdownFromGroups(store, groups)
+	if err != nil {
+		return nil, err
+	}
+	return topNByCount(rows, 10), nil
+}
+
+// BreakdownByAuthor returns PR metrics grouped by author display name, limited to the top
+// 10 authors by PR count and sorted by AvgCycleTime descending.
+func BreakdownByAuthor(store *storage.Store, f storage.Filter) ([]BreakdownRow, error) {
+	prs, err := store.ListPullRequests(f)
+	if err != nil {
+		return nil, err
+	}
+
+	authors, err := store.ListAuthors()
+	if err != nil {
+		return nil, err
+	}
+	displayNames := make(map[string]string, len(authors))
+	for _, a := range authors {
+		displayNames[a.ID] = a.DisplayName
+	}
+
+	groups := map[string][]domain.PullRequest{}
+	for _, pr := range prs {
+		if pr.MergedAt == nil {
+			continue
+		}
+		key := pr.AuthorID
+		if name, ok := displayNames[pr.AuthorID]; ok && name != "" {
+			key = name
+		}
+		groups[key] = append(groups[key], pr)
+	}
+
+	rows, err := breakdownFromGroups(store, groups)
+	if err != nil {
+		return nil, err
+	}
+	return topNByCount(rows, 10), nil
+}
+
+// breakdownFromGroups computes per-group PR timing aggregates, sorted by AvgCycleTime descending.
+func breakdownFromGroups(store *storage.Store, groups map[string][]domain.PullRequest) ([]BreakdownRow, error) {
+	rows := make([]BreakdownRow, 0, len(groups))
+	for key, groupPRs := range groups {
+		var cycleTimes, firstReviewTimes, inReviewTimes []time.Duration
+		for _, pr := range groupPRs {
+			cycleTimes = append(cycleTimes, pr.MergedAt.Sub(pr.CreatedAt))
+
+			reviews, err := store.ListReviews(pr.RepoSlug, pr.ID)
+			if err != nil {
+				return nil, err
+			}
+			if len(reviews) > 0 {
+				firstReview := reviews[0].CreatedAt
+				firstReviewTimes = append(firstReviewTimes, firstReview.Sub(pr.CreatedAt))
+				inReviewTimes = append(inReviewTimes, pr.MergedAt.Sub(firstReview))
+			}
+		}
+
+		rows = append(rows, BreakdownRow{
+			Key:            key,
+			AvgCycleTime:   avgDuration(cycleTimes),
+			AvgFirstReview: avgDuration(firstReviewTimes),
+			AvgInReview:    avgDuration(inReviewTimes),
+			Count:          len(groupPRs),
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].AvgCycleTime > rows[j].AvgCycleTime })
+	return rows, nil
+}
+
+// topNByCount returns the n rows with the highest Count, preserving the AvgCycleTime-descending order.
+func topNByCount(rows []BreakdownRow, n int) []BreakdownRow {
+	if len(rows) <= n {
+		return rows
+	}
+	byCount := make([]BreakdownRow, len(rows))
+	copy(byCount, rows)
+	sort.Slice(byCount, func(i, j int) bool { return byCount[i].Count > byCount[j].Count })
+	keep := map[string]bool{}
+	for _, r := range byCount[:n] {
+		keep[r.Key] = true
+	}
+
+	top := make([]BreakdownRow, 0, n)
+	for _, r := range rows {
+		if keep[r.Key] {
+			top = append(top, r)
+		}
+	}
+	return top
+}
+
+func avgDuration(durations []time.Duration) time.Duration {
+	if len(durations) == 0 {
+		return 0
+	}
+	var total time.Duration
+	for _, d := range durations {
+		total += d
+	}
+	return total / time.Duration(len(durations))
+}
+
+func minDuration(durations []time.Duration) time.Duration {
+	if len(durations) == 0 {
+		return 0
+	}
+	m := durations[0]
+	for _, d := range durations {
+		if d < m {
+			m = d
+		}
+	}
+	return m
+}
+
+func maxDuration(durations []time.Duration) time.Duration {
+	if len(durations) == 0 {
+		return 0
+	}
+	m := durations[0]
+	for _, d := range durations {
+		if d > m {
+			m = d
+		}
+	}
+	return m
 }
 
 func CommitsPerAuthor(store *storage.Store, f storage.Filter) ([]AuthorActivity, error) {

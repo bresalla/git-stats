@@ -64,6 +64,169 @@ func TestDeliveryFlow_ComputesCycleTimeAndReviewLag(t *testing.T) {
 	}
 }
 
+func TestSummaryStats_ComputesAvgMedianMinMaxForMergedPRs(t *testing.T) {
+	store := openTestStore(t)
+
+	created := time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC)
+	firstReview := created.Add(6 * time.Hour)
+	merged := created.Add(24 * time.Hour)
+
+	must(t, store.UpsertPullRequest(domain.PullRequest{
+		ID: 1, RepoSlug: "repo-one", Title: "PR 1", AuthorID: "acct-1",
+		State: "MERGED", CreatedAt: created, UpdatedAt: merged, MergedAt: &merged,
+	}))
+	must(t, store.UpsertReview(domain.Review{
+		ID: "r1", PullRequestID: 1, RepoSlug: "repo-one", ReviewerID: "acct-2",
+		Action: "approved", CreatedAt: firstReview,
+	}))
+	must(t, store.UpsertPullRequest(domain.PullRequest{
+		ID: 2, RepoSlug: "repo-one", Title: "PR 2 (still open)", AuthorID: "acct-1",
+		State: "OPEN", CreatedAt: created, UpdatedAt: created,
+	}))
+
+	stats, err := SummaryStats(store, storage.Filter{})
+	if err != nil {
+		t.Fatalf("SummaryStats failed: %v", err)
+	}
+	if stats.AvgCycleTime != 24*time.Hour || stats.MedianCycleTime != 24*time.Hour ||
+		stats.MinCycleTime != 24*time.Hour || stats.MaxCycleTime != 24*time.Hour {
+		t.Errorf("unexpected cycle time stats: %+v", stats)
+	}
+	if stats.AvgFirstReview != 6*time.Hour {
+		t.Errorf("expected AvgFirstReview 6h, got %v", stats.AvgFirstReview)
+	}
+	if stats.AvgInReview != 18*time.Hour {
+		t.Errorf("expected AvgInReview 18h, got %v", stats.AvgInReview)
+	}
+}
+
+func TestSummaryStats_NoMergedPRsReturnsZeroValues(t *testing.T) {
+	store := openTestStore(t)
+
+	stats, err := SummaryStats(store, storage.Filter{})
+	if err != nil {
+		t.Fatalf("SummaryStats failed: %v", err)
+	}
+	if stats.AvgCycleTime != 0 || stats.MaxCycleTime != 0 {
+		t.Errorf("expected zero-value stats for no merged PRs, got %+v", stats)
+	}
+}
+
+func TestDistributions_ComputesPercentilesAcrossMergedPRs(t *testing.T) {
+	store := openTestStore(t)
+
+	created := time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC)
+	for i := 1; i <= 10; i++ {
+		merged := created.Add(time.Duration(i*2) * time.Hour)
+		must(t, store.UpsertPullRequest(domain.PullRequest{
+			ID: i, RepoSlug: "repo-one", Title: "PR", AuthorID: "acct-1",
+			State: "MERGED", CreatedAt: created, UpdatedAt: merged, MergedAt: &merged,
+		}))
+	}
+
+	dist, err := Distributions(store, storage.Filter{})
+	if err != nil {
+		t.Fatalf("Distributions failed: %v", err)
+	}
+	for _, key := range []string{"p50", "p75", "p90", "p95", "p99"} {
+		if _, ok := dist.CycleTime[key]; !ok {
+			t.Errorf("expected %s in CycleTime distribution", key)
+		}
+	}
+}
+
+func TestBreakdownByRepository_GroupsAndSortsByAvgCycleTime(t *testing.T) {
+	store := openTestStore(t)
+
+	created := time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC)
+	mergedSlow := created.Add(24 * time.Hour)
+	mergedFast := created.Add(12 * time.Hour)
+
+	must(t, store.UpsertPullRequest(domain.PullRequest{
+		ID: 1, RepoSlug: "repo-one", Title: "PR 1", AuthorID: "acct-1",
+		State: "MERGED", CreatedAt: created, UpdatedAt: mergedSlow, MergedAt: &mergedSlow,
+	}))
+	must(t, store.UpsertPullRequest(domain.PullRequest{
+		ID: 2, RepoSlug: "repo-two", Title: "PR 2", AuthorID: "acct-1",
+		State: "MERGED", CreatedAt: created, UpdatedAt: mergedFast, MergedAt: &mergedFast,
+	}))
+
+	rows, err := BreakdownByRepository(store, storage.Filter{})
+	if err != nil {
+		t.Fatalf("BreakdownByRepository failed: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
+	}
+	if rows[0].Key != "repo-one" || rows[0].AvgCycleTime != 24*time.Hour || rows[0].Count != 1 {
+		t.Errorf("expected repo-one first with 24h avg cycle time, got %+v", rows[0])
+	}
+	if rows[1].Key != "repo-two" {
+		t.Errorf("expected repo-two second, got %+v", rows[1])
+	}
+}
+
+func TestBreakdownByAuthor_GroupsByDisplayName(t *testing.T) {
+	store := openTestStore(t)
+
+	must(t, store.UpsertAuthor(domain.Author{ID: "acct-1", DisplayName: "Alice"}))
+	must(t, store.UpsertAuthor(domain.Author{ID: "acct-2", DisplayName: "Bob"}))
+
+	created := time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC)
+	merged := created.Add(12 * time.Hour)
+
+	must(t, store.UpsertPullRequest(domain.PullRequest{
+		ID: 1, RepoSlug: "repo-one", Title: "PR 1", AuthorID: "acct-1",
+		State: "MERGED", CreatedAt: created, UpdatedAt: merged, MergedAt: &merged,
+	}))
+	must(t, store.UpsertPullRequest(domain.PullRequest{
+		ID: 2, RepoSlug: "repo-one", Title: "PR 2", AuthorID: "acct-2",
+		State: "MERGED", CreatedAt: created, UpdatedAt: merged, MergedAt: &merged,
+	}))
+
+	rows, err := BreakdownByAuthor(store, storage.Filter{})
+	if err != nil {
+		t.Fatalf("BreakdownByAuthor failed: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 authors, got %d", len(rows))
+	}
+	keys := map[string]bool{rows[0].Key: true, rows[1].Key: true}
+	if !keys["Alice"] || !keys["Bob"] {
+		t.Errorf("expected breakdown keyed by display name, got %+v", rows)
+	}
+}
+
+func TestBreakdownByRepository_LimitsToTop10ByCount(t *testing.T) {
+	store := openTestStore(t)
+
+	created := time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC)
+	merged := created.Add(time.Hour)
+
+	prID := 1
+	for repo := 0; repo < 12; repo++ {
+		count := 1
+		if repo < 11 {
+			count = 2 // give the first 11 repos more PRs than the 12th, so only one is dropped
+		}
+		for i := 0; i < count; i++ {
+			must(t, store.UpsertPullRequest(domain.PullRequest{
+				ID: prID, RepoSlug: "repo-" + string(rune('a'+repo)), Title: "PR", AuthorID: "acct-1",
+				State: "MERGED", CreatedAt: created, UpdatedAt: merged, MergedAt: &merged,
+			}))
+			prID++
+		}
+	}
+
+	rows, err := BreakdownByRepository(store, storage.Filter{})
+	if err != nil {
+		t.Fatalf("BreakdownByRepository failed: %v", err)
+	}
+	if len(rows) != 10 {
+		t.Fatalf("expected breakdown limited to 10 rows, got %d", len(rows))
+	}
+}
+
 func TestChurnHotspots_AggregatesByPathSortedDescending(t *testing.T) {
 	store := openTestStore(t)
 
